@@ -1,0 +1,15 @@
+# compilation database
+.cache/
+compile_commands.json
+.clangd
+
+# editor directories
+.vscode/
+.zed/
+
+# build directories
+build/
+out/
+
+# old source code
+old_source/

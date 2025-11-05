@@ -1,0 +1,96 @@
+{
+  "version": 8,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "debug",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "architecture": { "value": "x64", "strategy": "external" }
+    },
+    {
+      "name": "windows-msvc-base",
+      "hidden": true,
+      "inherits": "windows-base",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl.exe",
+        "CMAKE_CXX_COMPILER": "cl.exe",
+        "CMAKE_C_FLAGS": "/D_CRT_SECURE_NO_WARNINGS",
+        "CMAKE_CXX_FLAGS": "/D_CRT_SECURE_NO_WARNINGS"
+      }
+    },
+    {
+      "name": "windows-msvc-debug",
+      "inherits": ["windows-msvc-base", "debug"],
+      "displayName": "MSVC x64 Debug (Windows)",
+      "description": "Builds with MSVC compiler for debugging."
+    },
+    {
+      "name": "windows-msvc-release",
+      "inherits": ["windows-msvc-base", "release"],
+      "displayName": "MSVC x64 Release (Windows)",
+      "description": "Builds with MSVC compiler for release."
+    },
+    {
+      "name": "windows-clang-base",
+      "hidden": true,
+      "inherits": "windows-base",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang-cl.exe",
+        "CMAKE_CXX_COMPILER": "clang-cl.exe"
+      }
+    },
+    {
+      "name": "windows-clang-debug",
+      "inherits": ["windows-clang-base", "debug"],
+      "displayName": "Clang-CL x64 Debug (Windows)",
+      "description": "Builds with Clang-CL (MSVC backend) for debugging."
+    },
+    {
+      "name": "windows-clang-release",
+      "inherits": ["windows-clang-base", "release"],
+      "displayName": "Clang-CL x64 Release (Windows)",
+      "description": "Builds with Clang-CL (MSVC backend) for release."
+    }
+  ],
+  "buildPresets": [
+    { "name": "windows-msvc-debug", "configurePreset": "windows-msvc-debug" },
+    { "name": "windows-msvc-release", "configurePreset": "windows-msvc-release" },
+    { "name": "windows-clang-debug", "configurePreset": "windows-clang-debug" },
+    { "name": "windows-clang-release", "configurePreset": "windows-clang-release" }
+  ],
+  "testPresets": [
+    { "name": "windows-msvc-debug", "configurePreset": "windows-msvc-debug" },
+    { "name": "windows-msvc-release", "configurePreset": "windows-msvc-release" },
+    { "name": "windows-clang-debug", "configurePreset": "windows-clang-debug" },
+    { "name": "windows-clang-release", "configurePreset": "windows-clang-release" }
+  ]
+}

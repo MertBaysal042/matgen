@@ -1,0 +1,43 @@
+Checks: >
+  -*,
+  bugprone-*,
+  misc-*,
+  portability-*,
+  performance-*,
+  readability-*,
+  clang-analyzer-*,
+  -readability-magic-numbers,
+  -readability-identifier-naming,
+  -bugprone-easily-swappable-parameters,
+  -readability-identifier-length,
+
+WarningsAsErrors: "*"
+
+HeaderFileExtensions:
+  - h
+
+ImplementationFileExtensions:
+  - c
+  - cpp
+
+HeaderFilterRegex: ""
+ExcludeHeaderFilterRegex: ""
+
+SystemHeaders: false
+
+CheckOptions:
+  readability-identifier-naming.EnumCase: "lower_case"
+  readability-identifier-naming.StructCase: "lower_case"
+  readability-identifier-naming.FunctionCase: "lower_case"
+  readability-identifier-naming.VariableCase: "lower_case"
+  readability-identifier-naming.MemberCase: "lower_case"
+  readability-identifier-naming.ParameterCase: "lower_case"
+  readability-identifier-naming.TypedefCase: "lower_case"
+  readability-identifier-naming.TypedefSuffix: "_t"
+  readability-identifier-naming.EnumConstantCase: "UPPER_CASE"
+  readability-identifier-naming.MacroDefinitionCase: "UPPER_CASE"
+  readability-identifier-naming.ConstantCase: "CamelCase"
+  readability-identifier-naming.ConstantPrefix: "k"
+  readability-identifier-naming.StaticConstantCase: "UPPER_CASE"
+  readability-identifier-naming.ClassMemberSuffix: "_"
+  readability-function-cognitive-complexity.Threshold: 50
