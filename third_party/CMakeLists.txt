@@ -12,6 +12,3 @@ endif()
 if(MATGEN_BUILD_BENCHMARKS)
   add_subdirectory("benchmark")
 endif()
-
-add_subdirectory("eigen")
-add_subdirectory("nlohmann_json")

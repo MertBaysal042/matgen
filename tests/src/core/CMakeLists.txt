@@ -6,4 +6,5 @@ target_sources(
     "matrix_convert_test.cpp"
     "matrix_io_test.cpp"
     "matrix_generate_test.cpp"
+    "matrix_ops_test.cpp"
 )

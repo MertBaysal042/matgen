@@ -6,4 +6,5 @@ target_sources(
     "matrix_convert.c"
     "matrix_io.c"
     "matrix_generate.c"
+    "matrix_ops.c"
 )
