@@ -1,9 +1,11 @@
-#ifndef MATGEN_CORE_MATRIX_CONVERT_H
-#define MATGEN_CORE_MATRIX_CONVERT_H
+#ifndef MATGEN_CORE_CONVERSION_H
+#define MATGEN_CORE_CONVERSION_H
 
 /**
- * @file matrix_convert.h
+ * @file conversion.h
  * @brief Format conversion functions for sparse matrices
+ *
+ * Converts between COO (Coordinate) and CSR (Compressed Sparse Row) formats.
  */
 
 #include "matgen/core/coo_matrix.h"
@@ -16,13 +18,14 @@ extern "C" {
 /**
  * @brief Convert COO matrix to CSR format
  *
- * The COO matrix should be sorted by (row, col) for best performance.
- * If not sorted, it will be sorted during conversion.
+ * The COO matrix will be sorted during conversion if not already sorted.
+ * The original COO matrix is not modified (sorting is done on a copy if
+ * needed).
  *
- * @param coo Input COO matrix
+ * @param coo Input COO matrix (const, not modified)
  * @return New CSR matrix, or NULL on error
  */
-matgen_csr_matrix_t* matgen_coo_to_csr(matgen_coo_matrix_t* coo);
+matgen_csr_matrix_t* matgen_coo_to_csr(const matgen_coo_matrix_t* coo);
 
 /**
  * @brief Convert CSR matrix to COO format
@@ -36,4 +39,4 @@ matgen_coo_matrix_t* matgen_csr_to_coo(const matgen_csr_matrix_t* csr);
 }
 #endif
 
-#endif  // MATGEN_CORE_MATRIX_CONVERT_H
+#endif  // MATGEN_CORE_CONVERSION_H

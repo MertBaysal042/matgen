@@ -1,5 +1,8 @@
 target_sources(
   matgen
   PRIVATE
-    "matrix_ops.c"
+    "spmv.c"
+    "vector_ops.c"
+    "sparse_vector.c"
+    "distance.c"
 )

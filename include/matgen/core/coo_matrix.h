@@ -12,9 +12,9 @@
  * - Simple operations that don't require fast access.
  */
 
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdio.h>
+
+#include "matgen/core/types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,16 +26,16 @@ extern "C" {
  * Stores matrix as arrays of (row, col, value) triplets.
  */
 typedef struct {
-  size_t rows;      // Number of rows in the matrix
-  size_t cols;      // Number of columns in the matrix
-  size_t nnz;       // Number of non-zero entries
-  size_t capacity;  // Allocated capacity for non-zero entries
+  matgen_index_t rows;     // Number of rows in the matrix
+  matgen_index_t cols;     // Number of columns in the matrix
+  matgen_size_t nnz;       // Number of non-zero entries
+  matgen_size_t capacity;  // Allocated capacity for non-zero entries
 
-  size_t* row_indices;  // Array of row indices for non-zero entries
-  size_t* col_indices;  // Array of column indices for non-zero entries
-  double* values;       // Array of values for non-zero entries
+  matgen_index_t* row_indices;  // Array of row indices [nnz]
+  matgen_index_t* col_indices;  // Array of column indices [nnz]
+  matgen_value_t* values;       // Array of values [nnz]
 
-  bool is_sorted;  // Indicates if the entries are sorted by (row, col)
+  bool is_sorted;  // Indicates if entries are sorted by (row, col)
 } matgen_coo_matrix_t;
 
 // =============================================================================
@@ -50,13 +50,13 @@ typedef struct {
  * @param nnz_hint Expected number of non-zeros (for pre-allocation)
  * @return Pointer to new matrix, or NULL on error.
  */
-matgen_coo_matrix_t* matgen_coo_create(size_t rows, size_t cols,
-                                       size_t nnz_hint);
+matgen_coo_matrix_t* matgen_coo_create(matgen_index_t rows, matgen_index_t cols,
+                                       matgen_size_t nnz_hint);
 
 /**
  * @brief Destroy a COO matrix and free its resources.
  *
- * @param matrix Pointer to the matrix to destroy.
+ * @param matrix Pointer to the matrix to destroy (can be NULL).
  */
 void matgen_coo_destroy(matgen_coo_matrix_t* matrix);
 
@@ -73,18 +73,21 @@ void matgen_coo_destroy(matgen_coo_matrix_t* matrix);
  * @param row Row index (0-based)
  * @param col Column index (0-based)
  * @param value Value to add
- * @return 0 on success, non-zero on error
+ * @return MATGEN_SUCCESS on success, error code on failure
  */
-int matgen_coo_add_entry(matgen_coo_matrix_t* matrix, size_t row, size_t col,
-                         double value);
+matgen_error_t matgen_coo_add_entry(matgen_coo_matrix_t* matrix,
+                                    matgen_index_t row, matgen_index_t col,
+                                    matgen_value_t value);
 
 /**
  * @brief Sort entries by (row, col) order
  *
+ * Uses qsort internally. After sorting, is_sorted flag is set to true.
+ *
  * @param matrix Matrix to sort
- * @return 0 on success, non-zero on error
+ * @return MATGEN_SUCCESS on success, error code on failure
  */
-int matgen_coo_sort(matgen_coo_matrix_t* matrix);
+matgen_error_t matgen_coo_sort(matgen_coo_matrix_t* matrix);
 
 // =============================================================================
 // Matrix Access
@@ -94,15 +97,30 @@ int matgen_coo_sort(matgen_coo_matrix_t* matrix);
  * @brief Get value at (row, col)
  *
  * Linear search through entries. Returns 0.0 if not found.
- * For better performance with multiple queries, convert to CSR/CSC format.
+ * For better performance with multiple queries, convert to CSR format.
  *
  * @param matrix Matrix to query
  * @param row Row index (0-based)
  * @param col Column index (0-based)
- * @return Value at (row, col), or 0.0 if not present or on error
+ * @param[out] value Pointer to store the value (can be NULL to just check
+ * existence)
+ * @return MATGEN_SUCCESS if found, MATGEN_ERROR_INVALID_ARGUMENT if not found
+ * or error
  */
-double matgen_coo_get(const matgen_coo_matrix_t* matrix, size_t row,
-                      size_t col);
+matgen_error_t matgen_coo_get(const matgen_coo_matrix_t* matrix,
+                              matgen_index_t row, matgen_index_t col,
+                              matgen_value_t* value);
+
+/**
+ * @brief Check if entry exists at (row, col)
+ *
+ * @param matrix Matrix to query
+ * @param row Row index (0-based)
+ * @param col Column index (0-based)
+ * @return true if entry exists, false otherwise
+ */
+bool matgen_coo_has_entry(const matgen_coo_matrix_t* matrix, matgen_index_t row,
+                          matgen_index_t col);
 
 // =============================================================================
 // Utility Functions
@@ -115,9 +133,10 @@ double matgen_coo_get(const matgen_coo_matrix_t* matrix, size_t row,
  *
  * @param matrix Matrix to reserve capacity for
  * @param capacity Desired capacity
- * @return 0 on success, non-zero on error
+ * @return MATGEN_SUCCESS on success, error code on failure
  */
-int matgen_coo_reserve(matgen_coo_matrix_t* matrix, size_t capacity);
+matgen_error_t matgen_coo_reserve(matgen_coo_matrix_t* matrix,
+                                  matgen_size_t capacity);
 
 /**
  * @brief Clear all entries from the matrix
@@ -140,9 +159,22 @@ void matgen_coo_print_info(const matgen_coo_matrix_t* matrix, FILE* stream);
  * @brief Calculate memory usage in bytes
  *
  * @param matrix Matrix to calculate memory for
- * @return Total memory usage in bytes
+ * @return Total memory usage in bytes, or 0 if matrix is NULL
  */
-size_t matgen_coo_memory_usage(const matgen_coo_matrix_t* matrix);
+matgen_size_t matgen_coo_memory_usage(const matgen_coo_matrix_t* matrix);
+
+/**
+ * @brief Validate COO matrix integrity
+ *
+ * Checks:
+ * - Matrix pointer is valid
+ * - Indices are within bounds
+ * - Arrays are allocated if nnz > 0
+ *
+ * @param matrix Matrix to validate
+ * @return true if valid, false otherwise
+ */
+bool matgen_coo_validate(const matgen_coo_matrix_t* matrix);
 
 #ifdef __cplusplus
 }

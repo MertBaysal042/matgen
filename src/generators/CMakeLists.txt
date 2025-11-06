@@ -1,6 +1,5 @@
 target_sources(
   matgen
   PRIVATE
-    "log.c"
-    "argparse.c"
+    "random.c"
 )

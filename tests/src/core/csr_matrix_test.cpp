@@ -1,15 +1,13 @@
 #include <gtest/gtest.h>
 #include <matgen/core/csr_matrix.h>
-#include <matgen/util/log.h>
+#include <matgen/core/types.h>
 
-#include <cmath>
-
+// Test fixture for CSR matrix
 class CSRMatrixTest : public ::testing::Test {
  protected:
-  void SetUp() override {
-    // Suppress log output during tests
-    matgen_log_set_level(MATGEN_LOG_LEVEL_ERROR);
-  }
+  matgen_csr_matrix_t* matrix;  // NOLINT
+
+  void SetUp() override { matrix = nullptr; }
 
   void TearDown() override {
     if (matrix != nullptr) {
@@ -18,169 +16,230 @@ class CSRMatrixTest : public ::testing::Test {
     }
   }
 
-  // Helper to create a simple CSR matrix manually
-  // Matrix: [1 0 2]
-  //         [0 3 0]
-  //         [4 0 5]
-  matgen_csr_matrix_t* CreateTestMatrix() {
-    ((void)this);
-
-    matgen_csr_matrix_t* m = matgen_csr_create(3, 3, 5);
+  // Helper: Create a simple 3x3 identity-like matrix
+  // [1 0 0]
+  // [0 2 0]
+  // [0 0 3]
+  static matgen_csr_matrix_t* create_identity_3x3() {
+    matgen_csr_matrix_t* m = matgen_csr_create(3, 3, 3);
     if (m == nullptr) {
       return nullptr;
     }
 
-    // Row 0: [1, 2] at cols [0, 2]
+    // row_ptr: [0, 1, 2, 3]
     m->row_ptr[0] = 0;
-    m->row_ptr[1] = 2;
+    m->row_ptr[1] = 1;
+    m->row_ptr[2] = 2;
+    m->row_ptr[3] = 3;
+
+    // col_indices: [0, 1, 2]
     m->col_indices[0] = 0;
+    m->col_indices[1] = 1;
+    m->col_indices[2] = 2;
+
+    // values: [1.0, 2.0, 3.0]
     m->values[0] = 1.0;
-    m->col_indices[1] = 2;
     m->values[1] = 2.0;
-
-    // Row 1: [3] at col [1]
-    m->row_ptr[2] = 3;
-    m->col_indices[2] = 1;
     m->values[2] = 3.0;
-
-    // Row 2: [4, 5] at cols [0, 2]
-    m->row_ptr[3] = 5;
-    m->col_indices[3] = 0;
-    m->values[3] = 4.0;
-    m->col_indices[4] = 2;
-    m->values[4] = 5.0;
 
     return m;
   }
-
-  matgen_csr_matrix_t* matrix{nullptr};  // NOLINT
 };
 
 // =============================================================================
 // Creation and Destruction Tests
 // =============================================================================
 
-TEST_F(CSRMatrixTest, CreateAndDestroy) {
-  matrix = matgen_csr_create(10, 10, 5);
+TEST_F(CSRMatrixTest, CreateValidMatrix) {
+  matrix = matgen_csr_create(10, 20, 50);
+
   ASSERT_NE(matrix, nullptr);
   EXPECT_EQ(matrix->rows, 10);
-  EXPECT_EQ(matrix->cols, 10);
-  EXPECT_EQ(matrix->nnz, 5);
+  EXPECT_EQ(matrix->cols, 20);
+  EXPECT_EQ(matrix->nnz, 50);
   EXPECT_NE(matrix->row_ptr, nullptr);
   EXPECT_NE(matrix->col_indices, nullptr);
   EXPECT_NE(matrix->values, nullptr);
+
+  // row_ptr should be initialized to zeros
+  EXPECT_EQ(matrix->row_ptr[0], 0);
 }
 
-TEST_F(CSRMatrixTest, InvalidDimensions) {
-  matrix = matgen_csr_create(0, 10, 5);
-  EXPECT_EQ(matrix, nullptr);
-
-  matrix = matgen_csr_create(10, 0, 5);
-  EXPECT_EQ(matrix, nullptr);
-}
-
-TEST_F(CSRMatrixTest, ZeroNonzeros) {
+TEST_F(CSRMatrixTest, CreateEmptyMatrix) {
   matrix = matgen_csr_create(5, 5, 0);
+
   ASSERT_NE(matrix, nullptr);
   EXPECT_EQ(matrix->nnz, 0);
-
-  // All rows should be empty
-  for (size_t i = 0; i <= matrix->rows; i++) {
-    EXPECT_EQ(matrix->row_ptr[i], 0);
-  }
 }
 
-TEST_F(CSRMatrixTest, InitialState) {
-  matrix = matgen_csr_create(5, 5, 10);
-  ASSERT_NE(matrix, nullptr);
+TEST_F(CSRMatrixTest, CreateInvalidDimensions) {
+  matrix = matgen_csr_create(0, 10, 0);
+  EXPECT_EQ(matrix, nullptr);
 
-  // row_ptr should be all zeros (calloc)
-  for (size_t i = 0; i <= matrix->rows; i++) {
-    EXPECT_EQ(matrix->row_ptr[i], 0);
-  }
+  matrix = matgen_csr_create(10, 0, 0);
+  EXPECT_EQ(matrix, nullptr);
+}
+
+TEST_F(CSRMatrixTest, DestroyNullMatrix) {
+  // Should not crash
+  matgen_csr_destroy(nullptr);
 }
 
 // =============================================================================
-// Matrix Access Tests
+// Get Entry Tests
 // =============================================================================
 
-TEST_F(CSRMatrixTest, GetExistingValues) {
-  matrix = CreateTestMatrix();
+TEST_F(CSRMatrixTest, GetExistingEntry) {
+  matrix = create_identity_3x3();
   ASSERT_NE(matrix, nullptr);
 
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 0, 0), 1.0);
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 0, 2), 2.0);
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 1, 1), 3.0);
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 2, 0), 4.0);
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 2, 2), 5.0);
+  matgen_value_t value;
+  EXPECT_EQ(matgen_csr_get(matrix, 0, 0, &value), MATGEN_SUCCESS);
+  EXPECT_DOUBLE_EQ(value, 1.0);
+
+  EXPECT_EQ(matgen_csr_get(matrix, 1, 1, &value), MATGEN_SUCCESS);
+  EXPECT_DOUBLE_EQ(value, 2.0);
+
+  EXPECT_EQ(matgen_csr_get(matrix, 2, 2, &value), MATGEN_SUCCESS);
+  EXPECT_DOUBLE_EQ(value, 3.0);
 }
 
-TEST_F(CSRMatrixTest, GetZeroValues) {
-  matrix = CreateTestMatrix();
+TEST_F(CSRMatrixTest, GetNonExistentEntry) {
+  matrix = create_identity_3x3();
   ASSERT_NE(matrix, nullptr);
 
-  // These positions should be zero (not stored)
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 0, 1), 0.0);
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 1, 0), 0.0);
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 1, 2), 0.0);
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 2, 1), 0.0);
+  matgen_value_t value;
+  EXPECT_EQ(matgen_csr_get(matrix, 0, 1, &value),
+            MATGEN_ERROR_INVALID_ARGUMENT);
+  EXPECT_DOUBLE_EQ(value, 0.0);
+
+  EXPECT_EQ(matgen_csr_get(matrix, 1, 0, &value),
+            MATGEN_ERROR_INVALID_ARGUMENT);
+  EXPECT_DOUBLE_EQ(value, 0.0);
 }
 
 TEST_F(CSRMatrixTest, GetOutOfBounds) {
-  matrix = CreateTestMatrix();
+  matrix = create_identity_3x3();
   ASSERT_NE(matrix, nullptr);
 
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 5, 0), 0.0);
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 0, 5), 0.0);
+  matgen_value_t value;
+  EXPECT_EQ(matgen_csr_get(matrix, 3, 0, &value),
+            MATGEN_ERROR_INVALID_ARGUMENT);
+  EXPECT_EQ(matgen_csr_get(matrix, 0, 3, &value),
+            MATGEN_ERROR_INVALID_ARGUMENT);
 }
 
-TEST_F(CSRMatrixTest, GetFromNullMatrix) {
-  EXPECT_DOUBLE_EQ(matgen_csr_get(nullptr, 0, 0), 0.0);
+TEST_F(CSRMatrixTest, GetWithNullValue) {
+  matrix = create_identity_3x3();
+  ASSERT_NE(matrix, nullptr);
+
+  // Should not crash with NULL value pointer
+  EXPECT_EQ(matgen_csr_get(matrix, 0, 0, nullptr), MATGEN_SUCCESS);
+}
+
+TEST_F(CSRMatrixTest, GetNullMatrix) {
+  matgen_value_t value;
+  EXPECT_EQ(matgen_csr_get(nullptr, 0, 0, &value),
+            MATGEN_ERROR_INVALID_ARGUMENT);
+}
+
+TEST_F(CSRMatrixTest, HasEntryExists) {
+  matrix = create_identity_3x3();
+  ASSERT_NE(matrix, nullptr);
+
+  EXPECT_TRUE(matgen_csr_has_entry(matrix, 0, 0));
+  EXPECT_TRUE(matgen_csr_has_entry(matrix, 1, 1));
+  EXPECT_TRUE(matgen_csr_has_entry(matrix, 2, 2));
+}
+
+TEST_F(CSRMatrixTest, HasEntryNotExists) {
+  matrix = create_identity_3x3();
+  ASSERT_NE(matrix, nullptr);
+
+  EXPECT_FALSE(matgen_csr_has_entry(matrix, 0, 1));
+  EXPECT_FALSE(matgen_csr_has_entry(matrix, 1, 0));
 }
 
 // =============================================================================
 // Row Operations Tests
 // =============================================================================
 
-TEST_F(CSRMatrixTest, RowNonzeroCount) {
-  matrix = CreateTestMatrix();
+TEST_F(CSRMatrixTest, RowNnz) {
+  matrix = create_identity_3x3();
   ASSERT_NE(matrix, nullptr);
 
-  EXPECT_EQ(matgen_csr_row_nnz(matrix, 0), 2);
+  EXPECT_EQ(matgen_csr_row_nnz(matrix, 0), 1);
   EXPECT_EQ(matgen_csr_row_nnz(matrix, 1), 1);
-  EXPECT_EQ(matgen_csr_row_nnz(matrix, 2), 2);
+  EXPECT_EQ(matgen_csr_row_nnz(matrix, 2), 1);
 }
 
-TEST_F(CSRMatrixTest, EmptyRow) {
-  // Create matrix with empty row
-  matrix = matgen_csr_create(3, 3, 2);
+TEST_F(CSRMatrixTest, RowNnzEmptyRow) {
+  matrix = matgen_csr_create(5, 5, 2);
   ASSERT_NE(matrix, nullptr);
 
-  // Row 0: [1] at col [0]
+  // Create matrix with empty middle rows
   matrix->row_ptr[0] = 0;
   matrix->row_ptr[1] = 1;
+  matrix->row_ptr[2] = 1;  // Empty row
+  matrix->row_ptr[3] = 1;  // Empty row
+  matrix->row_ptr[4] = 2;
+  matrix->row_ptr[5] = 2;
+
   matrix->col_indices[0] = 0;
+  matrix->col_indices[1] = 4;
   matrix->values[0] = 1.0;
-
-  // Row 1: empty
-  matrix->row_ptr[2] = 1;
-
-  // Row 2: [2] at col [1]
-  matrix->row_ptr[3] = 2;
-  matrix->col_indices[1] = 1;
   matrix->values[1] = 2.0;
 
   EXPECT_EQ(matgen_csr_row_nnz(matrix, 0), 1);
-  EXPECT_EQ(matgen_csr_row_nnz(matrix, 1), 0);  // Empty row
-  EXPECT_EQ(matgen_csr_row_nnz(matrix, 2), 1);
+  EXPECT_EQ(matgen_csr_row_nnz(matrix, 1), 0);  // Empty
+  EXPECT_EQ(matgen_csr_row_nnz(matrix, 2), 0);  // Empty
+  EXPECT_EQ(matgen_csr_row_nnz(matrix, 3), 1);
+}
+
+TEST_F(CSRMatrixTest, GetRowRange) {
+  matrix = create_identity_3x3();
+  ASSERT_NE(matrix, nullptr);
+
+  matgen_size_t start;
+  matgen_size_t end;
+
+  EXPECT_EQ(matgen_csr_get_row_range(matrix, 0, &start, &end), MATGEN_SUCCESS);
+  EXPECT_EQ(start, 0);
+  EXPECT_EQ(end, 1);
+
+  EXPECT_EQ(matgen_csr_get_row_range(matrix, 1, &start, &end), MATGEN_SUCCESS);
+  EXPECT_EQ(start, 1);
+  EXPECT_EQ(end, 2);
+
+  EXPECT_EQ(matgen_csr_get_row_range(matrix, 2, &start, &end), MATGEN_SUCCESS);
+  EXPECT_EQ(start, 2);
+  EXPECT_EQ(end, 3);
+}
+
+TEST_F(CSRMatrixTest, GetRowRangeInvalid) {
+  matrix = create_identity_3x3();
+  ASSERT_NE(matrix, nullptr);
+
+  matgen_size_t start;
+  matgen_size_t end;
+
+  // Out of bounds row
+  EXPECT_EQ(matgen_csr_get_row_range(matrix, 3, &start, &end),
+            MATGEN_ERROR_INVALID_ARGUMENT);
+
+  // NULL pointers
+  EXPECT_EQ(matgen_csr_get_row_range(matrix, 0, nullptr, &end),
+            MATGEN_ERROR_INVALID_ARGUMENT);
+  EXPECT_EQ(matgen_csr_get_row_range(matrix, 0, &start, nullptr),
+            MATGEN_ERROR_INVALID_ARGUMENT);
 }
 
 // =============================================================================
 // Validation Tests
 // =============================================================================
 
-TEST_F(CSRMatrixTest, ValidateCorrectMatrix) {
-  matrix = CreateTestMatrix();
+TEST_F(CSRMatrixTest, ValidateValidMatrix) {
+  matrix = create_identity_3x3();
   ASSERT_NE(matrix, nullptr);
 
   EXPECT_TRUE(matgen_csr_validate(matrix));
@@ -191,119 +250,118 @@ TEST_F(CSRMatrixTest, ValidateNullMatrix) {
 }
 
 TEST_F(CSRMatrixTest, ValidateInvalidRowPtr) {
-  matrix = CreateTestMatrix();
+  matrix = matgen_csr_create(3, 3, 3);
   ASSERT_NE(matrix, nullptr);
 
-  // Make row_ptr non-monotonic
-  size_t temp = matrix->row_ptr[1];
-  matrix->row_ptr[1] = matrix->row_ptr[2];
-  matrix->row_ptr[2] = temp;
+  // Invalid: row_ptr[0] != 0
+  matrix->row_ptr[0] = 1;
+  matrix->row_ptr[1] = 2;
+  matrix->row_ptr[2] = 3;
+  matrix->row_ptr[3] = 3;
 
   EXPECT_FALSE(matgen_csr_validate(matrix));
 }
 
-TEST_F(CSRMatrixTest, ValidateWrongFinalRowPtr) {
-  matrix = CreateTestMatrix();
+TEST_F(CSRMatrixTest, ValidateInvalidNnz) {
+  matrix = create_identity_3x3();
   ASSERT_NE(matrix, nullptr);
 
-  // Make last row_ptr incorrect
-  matrix->row_ptr[matrix->rows] = matrix->nnz + 1;
+  // Invalid: row_ptr[rows] != nnz
+  matrix->row_ptr[3] = 5;  // Should be 3
 
   EXPECT_FALSE(matgen_csr_validate(matrix));
 }
 
-TEST_F(CSRMatrixTest, ValidateColumnOutOfRange) {
-  matrix = CreateTestMatrix();
+TEST_F(CSRMatrixTest, ValidateNonMonotonicRowPtr) {
+  matrix = matgen_csr_create(3, 3, 3);
   ASSERT_NE(matrix, nullptr);
 
-  // Set column index out of range
-  matrix->col_indices[0] = matrix->cols + 1;
+  // Invalid: non-monotonic
+  matrix->row_ptr[0] = 0;
+  matrix->row_ptr[1] = 2;
+  matrix->row_ptr[2] = 1;  // Goes backwards!
+  matrix->row_ptr[3] = 3;
+
+  EXPECT_FALSE(matgen_csr_validate(matrix));
+}
+
+TEST_F(CSRMatrixTest, ValidateColumnOutOfBounds) {
+  matrix = create_identity_3x3();
+  ASSERT_NE(matrix, nullptr);
+
+  // Invalid: column index out of bounds
+  matrix->col_indices[1] = 5;  // Max should be 2
 
   EXPECT_FALSE(matgen_csr_validate(matrix));
 }
 
 TEST_F(CSRMatrixTest, ValidateUnsortedColumns) {
-  matrix = CreateTestMatrix();
+  matrix = matgen_csr_create(2, 5, 3);
   ASSERT_NE(matrix, nullptr);
 
-  // Make columns in row 0 unsorted (swap 0 and 2)
-  size_t temp = matrix->col_indices[0];
-  matrix->col_indices[0] = matrix->col_indices[1];
-  matrix->col_indices[1] = temp;
+  // Row 0 has 3 entries
+  matrix->row_ptr[0] = 0;
+  matrix->row_ptr[1] = 3;
+  matrix->row_ptr[2] = 3;
+
+  // Columns not sorted within row
+  matrix->col_indices[0] = 2;
+  matrix->col_indices[1] = 4;
+  matrix->col_indices[2] = 1;  // Should come before 2!
+
+  matrix->values[0] = 1.0;
+  matrix->values[1] = 2.0;
+  matrix->values[2] = 3.0;
 
   EXPECT_FALSE(matgen_csr_validate(matrix));
 }
 
 // =============================================================================
-// Utility Tests
+// Memory and Info Tests
 // =============================================================================
 
-TEST_F(CSRMatrixTest, PrintInfo) {
-  matrix = CreateTestMatrix();
-  ASSERT_NE(matrix, nullptr);
-
-  // Should not crash
-  matgen_csr_print_info(matrix, stdout);
-}
-
 TEST_F(CSRMatrixTest, MemoryUsage) {
-  matrix = matgen_csr_create(10, 10, 20);
+  matrix = matgen_csr_create(5, 5, 10);
   ASSERT_NE(matrix, nullptr);
 
-  size_t memory = matgen_csr_memory_usage(matrix);
-  EXPECT_GT(memory, 0);
+  matgen_size_t memory = matgen_csr_memory_usage(matrix);
 
-  // Should at least include the arrays
-  size_t expected = ((matrix->rows + 1) * sizeof(size_t)) +  // row_ptr
-                    (matrix->nnz * sizeof(size_t)) +         // col_indices
-                    (matrix->nnz * sizeof(double));          // values
-  EXPECT_GE(memory, expected);
+  matgen_size_t expected = sizeof(matgen_csr_matrix_t) +
+                           (6 * sizeof(matgen_size_t)) +    // row_ptr (rows+1)
+                           (10 * sizeof(matgen_index_t)) +  // col_indices
+                           (10 * sizeof(matgen_value_t));   // values
+
+  EXPECT_EQ(memory, expected);
 }
 
 TEST_F(CSRMatrixTest, MemoryUsageNull) {
   EXPECT_EQ(matgen_csr_memory_usage(nullptr), 0);
 }
 
+TEST_F(CSRMatrixTest, PrintInfo) {
+  matrix = create_identity_3x3();
+  ASSERT_NE(matrix, nullptr);
+
+  // Should not crash
+  matgen_csr_print_info(matrix, stdout);
+}
+
 // =============================================================================
-// Binary Search Tests (implicit in matgen_csr_get)
+// Edge Cases
 // =============================================================================
 
-TEST_F(CSRMatrixTest, BinarySearchFirstElement) {
-  matrix = CreateTestMatrix();
-  ASSERT_NE(matrix, nullptr);
+TEST_F(CSRMatrixTest, LargeMatrix) {
+  matrix = matgen_csr_create(1000000, 1000000, 1000);
 
-  // First element in row
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 0, 0), 1.0);
+  ASSERT_NE(matrix, nullptr);
+  EXPECT_EQ(matrix->rows, 1000000);
+  EXPECT_EQ(matrix->cols, 1000000);
 }
 
-TEST_F(CSRMatrixTest, BinarySearchLastElement) {
-  matrix = CreateTestMatrix();
+TEST_F(CSRMatrixTest, NonSquareMatrix) {
+  matrix = matgen_csr_create(10, 100, 50);
+
   ASSERT_NE(matrix, nullptr);
-
-  // Last element in row
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 0, 2), 2.0);
-}
-
-TEST_F(CSRMatrixTest, BinarySearchMiddleElement) {
-  // Create a row with multiple elements
-  matrix = matgen_csr_create(1, 10, 5);
-  ASSERT_NE(matrix, nullptr);
-
-  matrix->row_ptr[0] = 0;
-  matrix->row_ptr[1] = 5;
-
-  for (size_t i = 0; i < 5; i++) {
-    matrix->col_indices[i] = i * 2;  // 0, 2, 4, 6, 8
-    matrix->values[i] = (double)(i + 1);
-  }
-
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 0, 4), 3.0);  // Middle element
-}
-
-TEST_F(CSRMatrixTest, BinarySearchNotFound) {
-  matrix = CreateTestMatrix();
-  ASSERT_NE(matrix, nullptr);
-
-  // Search for non-existent element between stored ones
-  EXPECT_DOUBLE_EQ(matgen_csr_get(matrix, 0, 1), 0.0);
+  EXPECT_EQ(matrix->rows, 10);
+  EXPECT_EQ(matrix->cols, 100);
 }

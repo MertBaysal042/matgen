@@ -1,5 +1,6 @@
 target_sources(
   matgen
   PRIVATE
-    "matrix_io.c"
+    "mtx_reader.c"
+    "mtx_writer.c"
 )

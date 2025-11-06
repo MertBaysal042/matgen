@@ -1,18 +1,16 @@
-#ifndef MATGEN_CORE_MATRIX_GENERATE_H
-#define MATGEN_CORE_MATRIX_GENERATE_H
+#ifndef MATGEN_GENERATORS_RANDOM_H
+#define MATGEN_GENERATORS_RANDOM_H
 
 /**
- * @file matrix_generate.h
+ * @file random.h
  * @brief Random sparse matrix generation
  *
  * Provides functions for generating random sparse matrices with various
- * distributions and patterns.
+ * distributions and patterns for testing and benchmarking.
  */
 
-#include <stdbool.h>
-#include <stddef.h>
-
 #include "matgen/core/coo_matrix.h"
+#include "matgen/core/types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,25 +29,25 @@ typedef enum {
  * @brief Configuration for random matrix generation
  */
 typedef struct {
-  size_t rows;     // Number of rows
-  size_t cols;     // Number of columns
-  size_t nnz;      // Number of non-zeros to generate
-  double density;  // Alternative: density (0.0-1.0), overrides nnz if > 0
+  matgen_index_t rows;  // Number of rows
+  matgen_index_t cols;  // Number of columns
+  matgen_size_t nnz;    // Number of non-zeros to generate
+  f64 density;          // Alternative: density (0.0-1.0), overrides nnz if > 0
 
   matgen_distribution_t distribution;  // Value distribution type
 
   // Uniform distribution parameters
-  double min_value;  // Minimum value (uniform)
-  double max_value;  // Maximum value (uniform)
+  f64 min_value;  // Minimum value (uniform)
+  f64 max_value;  // Maximum value (uniform)
 
   // Normal distribution parameters
-  double mean;    // Mean (normal)
-  double stddev;  // Standard deviation (normal)
+  f64 mean;    // Mean (normal)
+  f64 stddev;  // Standard deviation (normal)
 
   // Constant distribution
-  double constant_value;  // Constant value
+  f64 constant_value;  // Constant value
 
-  unsigned int seed;  // Random seed (0 = use time-based seed)
+  u32 seed;  // Random seed (0 = use time-based seed)
 
   bool allow_duplicates;  // Allow duplicate (row,col) pairs?
   bool sorted;            // Sort output by (row, col)?
@@ -72,8 +70,9 @@ typedef struct {
  * @param cols Number of columns
  * @param nnz Number of non-zeros
  */
-void matgen_random_config_init(matgen_random_config_t* config, size_t rows,
-                               size_t cols, size_t nnz);
+void matgen_random_config_init(matgen_random_config_t* config,
+                               matgen_index_t rows, matgen_index_t cols,
+                               matgen_size_t nnz);
 
 /**
  * @brief Generate a random sparse COO matrix
@@ -85,7 +84,7 @@ void matgen_random_config_init(matgen_random_config_t* config, size_t rows,
  * @param config Configuration for generation
  * @return New COO matrix, or NULL on error
  */
-matgen_coo_matrix_t* matgen_random_coo_create(
+matgen_coo_matrix_t* matgen_random_generate(
     const matgen_random_config_t* config);
 
 /**
@@ -102,10 +101,11 @@ matgen_coo_matrix_t* matgen_random_coo_create(
  * @param seed Random seed (0 = time-based)
  * @return New COO matrix, or NULL on error
  */
-matgen_coo_matrix_t* matgen_random_diagonal(size_t rows, size_t cols,
+matgen_coo_matrix_t* matgen_random_diagonal(matgen_index_t rows,
+                                            matgen_index_t cols,
                                             matgen_distribution_t distribution,
-                                            double min_value, double max_value,
-                                            unsigned int seed);
+                                            f64 min_value, f64 max_value,
+                                            u32 seed);
 
 /**
  * @brief Generate a random tridiagonal matrix
@@ -120,11 +120,26 @@ matgen_coo_matrix_t* matgen_random_diagonal(size_t rows, size_t cols,
  * @return New COO matrix, or NULL on error
  */
 matgen_coo_matrix_t* matgen_random_tridiagonal(
-    size_t size, matgen_distribution_t distribution, double min_value,
-    double max_value, unsigned int seed);
+    matgen_index_t size, matgen_distribution_t distribution, f64 min_value,
+    f64 max_value, u32 seed);
+
+/**
+ * @brief Generate a random sparse matrix with specified sparsity pattern
+ *
+ * Similar to matgen_random_generate but with a simpler interface.
+ *
+ * @param rows Number of rows
+ * @param cols Number of columns
+ * @param nnz Number of non-zeros
+ * @param seed Random seed (0 = time-based)
+ * @return New COO matrix with random values in [0,1], or NULL on error
+ */
+matgen_coo_matrix_t* matgen_random_uniform(matgen_index_t rows,
+                                           matgen_index_t cols,
+                                           matgen_size_t nnz, u32 seed);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // MATGEN_CORE_MATRIX_GENERATE_H
+#endif  // MATGEN_GENERATORS_RANDOM_H

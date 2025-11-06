@@ -1,5 +1,5 @@
 target_sources(
   matgen_test
   PRIVATE
-    "matrix_ops_test.cpp"
+    "spmv_test.cpp"
 )
