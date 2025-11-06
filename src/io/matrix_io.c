@@ -1,4 +1,4 @@
-#include "matgen/core/matrix_io.h"
+#include "matgen/io/matrix_io.h"
 
 #include <ctype.h>
 #include <stdlib.h>

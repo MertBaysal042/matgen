@@ -1,11 +1,9 @@
-#include "matgen/core/matrix_generate.h"
-
 #include <gtest/gtest.h>
+#include <matgen/core/coo_matrix.h>
+#include <matgen/util/matrix_generate.h>
 
 #include <cmath>
 #include <set>
-
-#include "matgen/core/coo_matrix.h"
 
 // Test: Config initialization
 TEST(MatrixGenerate, ConfigInit) {

@@ -1,7 +1,8 @@
+#include "matgen/util/matrix_convert.h"
+
 #include <stdlib.h>
 #include <string.h>
 
-#include "matgen/core/matrix_convert.h"
 #include "matgen/util/log.h"
 
 matgen_csr_matrix_t* matgen_coo_to_csr(matgen_coo_matrix_t* coo) {

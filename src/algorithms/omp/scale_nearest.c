@@ -2,52 +2,16 @@
 #include <stdlib.h>
 
 #include "matgen/core/csr_matrix.h"
-#include "matgen/core/matrix_convert.h"
+#include "matgen/util/matrix_convert.h"
 #include "omp_utils.h"
 #include "scale_omp.h"
 
 #ifdef MATGEN_HAS_OPENMP
 #include <omp.h>
 
-// Helper: Bilinear interpolation at floating-point coordinates
-static inline double bilinear_interp(const matgen_csr_matrix_t* csr, double i_f,
-                                     double j_f) {
-  // Get integer parts
-  size_t i0 = (size_t)floor(i_f);
-  size_t j0 = (size_t)floor(j_f);
-  size_t i1 = i0 + 1;
-  size_t j1 = j0 + 1;
-
-  // Clamp to bounds
-  if (i1 >= csr->rows) {
-    i1 = csr->rows - 1;
-  }
-
-  if (j1 >= csr->cols) {
-    j1 = csr->cols - 1;
-  }
-
-  // Get fractional parts
-  double di = i_f - (double)i0;
-  double dj = j_f - (double)j0;
-
-  // Get four corner values (reads are thread-safe)
-  double v00 = matgen_csr_get(csr, i0, j0);
-  double v01 = matgen_csr_get(csr, i0, j1);
-  double v10 = matgen_csr_get(csr, i1, j0);
-  double v11 = matgen_csr_get(csr, i1, j1);
-
-  // Bilinear interpolation
-  double v0 = (v00 * (1.0 - dj)) + (v01 * dj);
-  double v1 = (v10 * (1.0 - dj)) + (v11 * dj);
-  double value = (v0 * (1.0 - di)) + (v1 * di);
-
-  return value;
-}
-
-matgen_coo_matrix_t* matgen_matrix_scale_bilinear_omp(
+matgen_coo_matrix_t* matgen_matrix_scale_nearest_omp(
     const matgen_coo_matrix_t* input, size_t new_rows, size_t new_cols,
-    double sparsity_threshold, int num_threads) {
+    int num_threads) {
   if (!input || new_rows == 0 || new_cols == 0) {
     return NULL;
   }
@@ -62,8 +26,13 @@ matgen_coo_matrix_t* matgen_matrix_scale_bilinear_omp(
     return NULL;
   }
 
-  // Estimate output size (bilinear may add entries)
-  size_t estimated_nnz = input->nnz * 4;
+  // Estimate output size
+  double sparsity = (double)input->nnz / (double)(input->rows * input->cols);
+  size_t estimated_nnz =
+      (size_t)(sparsity * (double)new_rows * (double)new_cols);
+  if (estimated_nnz < input->nnz) {
+    estimated_nnz = input->nnz;
+  }
 
   // Create per-thread output matrices
   size_t nnz_per_thread = (estimated_nnz / max_threads) + 100;
@@ -79,7 +48,7 @@ matgen_coo_matrix_t* matgen_matrix_scale_bilinear_omp(
   double row_scale = (double)input->rows / (double)new_rows;
   double col_scale = (double)input->cols / (double)new_cols;
 
-// Parallel bilinear interpolation
+// Parallel scaling - each thread processes a range of rows
 #pragma omp parallel
   {
     int tid = omp_get_thread_num();
@@ -87,19 +56,28 @@ matgen_coo_matrix_t* matgen_matrix_scale_bilinear_omp(
 
     int i;
 
-// Dynamic scheduling for load balancing
+// Dynamic scheduling for load balancing (rows may have different sparsity)
 #pragma omp for schedule(dynamic, 16)
     for (i = 0; i < (int)new_rows; i++) {
       for (size_t j = 0; j < new_cols; j++) {
-        // Map to continuous coordinates in original matrix
-        double i_f = (double)i * row_scale;
-        double j_f = (double)j * col_scale;
+        // Map to old coordinates using nearest neighbor
+        size_t i_old = (size_t)round((double)i * row_scale);
+        size_t j_old = (size_t)round((double)j * col_scale);
 
-        // Bilinear interpolation
-        double value = bilinear_interp(csr, i_f, j_f);
+        // Clamp to valid range
+        if (i_old >= input->rows) {
+          i_old = input->rows - 1;
+        }
 
-        // Add to thread-local output if above threshold
-        if (fabs(value) > sparsity_threshold) {
+        if (j_old >= input->cols) {
+          j_old = input->cols - 1;
+        }
+
+        // Look up value (CSR reads are thread-safe)
+        double value = matgen_csr_get(csr, i_old, j_old);
+
+        // Add to thread-local output if non-zero
+        if (value != 0.0) {
           matgen_coo_add_entry(local_output, i, j, value);
         }
       }

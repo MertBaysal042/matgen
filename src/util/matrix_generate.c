@@ -1,4 +1,4 @@
-#include "matgen/core/matrix_generate.h"
+#include "matgen/util/matrix_generate.h"
 
 #include <math.h>
 #include <stdlib.h>

@@ -3,8 +3,4 @@ target_sources(
   PRIVATE
     "coo_matrix.c"
     "csr_matrix.c"
-    "matrix_convert.c"
-    "matrix_io.c"
-    "matrix_generate.c"
-    "matrix_ops.c"
 )

@@ -1,10 +1,8 @@
-#include "matgen/core/csr_matrix.h"
-
 #include <gtest/gtest.h>
+#include <matgen/core/csr_matrix.h>
+#include <matgen/util/log.h>
 
 #include <cmath>
-
-#include "matgen/util/log.h"
 
 class CSRMatrixTest : public ::testing::Test {
  protected:

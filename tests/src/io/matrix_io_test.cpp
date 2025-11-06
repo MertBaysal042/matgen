@@ -1,13 +1,11 @@
-#include "matgen/core/matrix_io.h"
-
 #include <gtest/gtest.h>
+#include <matgen/core/coo_matrix.h>
+#include <matgen/core/csr_matrix.h>
+#include <matgen/io/matrix_io.h>
+#include <matgen/util/matrix_convert.h>
 
 #include <cstdio>
 #include <string>
-
-#include "matgen/core/coo_matrix.h"
-#include "matgen/core/csr_matrix.h"
-#include "matgen/core/matrix_convert.h"
 
 namespace {
 // Helper: Create a temporary filename

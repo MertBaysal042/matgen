@@ -1,5 +1,5 @@
 if(MATGEN_ENABLE_OPENMP)
-  add_subdirectory("openmp")
+  add_subdirectory("omp")
 endif()
 
 if(MATGEN_ENABLE_MPI)

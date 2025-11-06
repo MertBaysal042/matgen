@@ -1,6 +1,6 @@
 #include "scale_mpi.h"
 
-#include "matgen/core/matrix_scale.h"
+#include "matgen/algorithms/matrix_scale.h"
 
 #ifdef MATGEN_HAS_MPI
 

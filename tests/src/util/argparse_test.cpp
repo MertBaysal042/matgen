@@ -1,10 +1,8 @@
-#include "matgen/util/argparse.h"
-
 #include <gtest/gtest.h>
+#include <matgen/util/argparse.h>
+#include <matgen/util/log.h>
 
 #include <cstring>
-
-#include "matgen/util/log.h"
 
 class ArgParseTest : public ::testing::Test {
  protected:

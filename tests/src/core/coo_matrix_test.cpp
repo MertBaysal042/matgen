@@ -1,8 +1,6 @@
-#include "matgen/core/coo_matrix.h"
-
 #include <gtest/gtest.h>
-
-#include "matgen/util/log.h"
+#include <matgen/core/coo_matrix.h>
+#include <matgen/util/log.h>
 
 class COOMatrixBasicTest : public ::testing::Test {
  protected:

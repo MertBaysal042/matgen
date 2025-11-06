@@ -1,4 +1,4 @@
-#include "matgen/core/matrix_ops.h"
+#include "matgen/math/matrix_ops.h"
 
 #include <math.h>
 #include <string.h>

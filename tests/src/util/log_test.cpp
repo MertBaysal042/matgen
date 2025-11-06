@@ -1,6 +1,5 @@
-#include "matgen/util/log.h"
-
 #include <gtest/gtest.h>
+#include <matgen/util/log.h>
 
 #include <cstdio>
 

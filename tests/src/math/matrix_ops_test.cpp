@@ -1,12 +1,10 @@
-#include "matgen/core/matrix_ops.h"
-
 #include <gtest/gtest.h>
+#include <matgen/core/coo_matrix.h>
+#include <matgen/core/csr_matrix.h>
+#include <matgen/math/matrix_ops.h>
+#include <matgen/util/matrix_convert.h>
 
 #include <cmath>
-
-#include "matgen/core/coo_matrix.h"
-#include "matgen/core/csr_matrix.h"
-#include "matgen/core/matrix_convert.h"
 
 // =============================================================================
 // SpMV Tests
