@@ -3,7 +3,6 @@
 #include <math.h>
 #include <stdlib.h>
 
-#include "matgen/algorithms/scaling/scaling_types.h"
 #include "matgen/core/conversion.h"
 #include "matgen/core/coo_matrix.h"
 #include "matgen/utils/log.h"
