@@ -47,118 +47,75 @@ static matgen_error_t coo_resize(matgen_coo_matrix_t* matrix,
   return MATGEN_SUCCESS;
 }
 
-// Partition function for quicksort
-static matgen_size_t partition(matgen_coo_matrix_t* matrix, matgen_size_t low,
-                               matgen_size_t high) {
-  matgen_index_t pivot_row = matrix->row_indices[high];
-  matgen_index_t pivot_col = matrix->col_indices[high];
+// =============================================================================
+// Sorting Helper Structures and Functions (OPTIMIZED)
+// =============================================================================
 
-  matgen_size_t i = low;  // Position for next element <= pivot
+// Structure to hold COO entry for sorting
+typedef struct {
+  matgen_index_t row;
+  matgen_index_t col;
+  matgen_value_t value;
+} coo_entry_t;
 
-  for (matgen_size_t j = low; j < high; j++) {
-    if (matrix->row_indices[j] < pivot_row ||
-        (matrix->row_indices[j] == pivot_row &&
-         matrix->col_indices[j] < pivot_col)) {
-      // Swap elements at i and j
-      if (i != j) {
-        matgen_index_t temp_row = matrix->row_indices[i];
-        matgen_index_t temp_col = matrix->col_indices[i];
-        matgen_value_t temp_val = matrix->values[i];
+// Comparison function for qsort (lexicographic order: row first, then column)
+static int compare_coo_entries(const void* a, const void* b) {
+  const coo_entry_t* entry_a = (const coo_entry_t*)a;
+  const coo_entry_t* entry_b = (const coo_entry_t*)b;
 
-        matrix->row_indices[i] = matrix->row_indices[j];
-        matrix->col_indices[i] = matrix->col_indices[j];
-        matrix->values[i] = matrix->values[j];
-
-        matrix->row_indices[j] = temp_row;
-        matrix->col_indices[j] = temp_col;
-        matrix->values[j] = temp_val;
-      }
-      i++;
-    }
+  // Compare rows first
+  if (entry_a->row < entry_b->row) {
+    return -1;
   }
 
-  // Place pivot in correct position
-  if (i != high) {
-    matgen_index_t temp_row = matrix->row_indices[i];
-    matgen_index_t temp_col = matrix->col_indices[i];
-    matgen_value_t temp_val = matrix->values[i];
-
-    matrix->row_indices[i] = matrix->row_indices[high];
-    matrix->col_indices[i] = matrix->col_indices[high];
-    matrix->values[i] = matrix->values[high];
-
-    matrix->row_indices[high] = temp_row;
-    matrix->col_indices[high] = temp_col;
-    matrix->values[high] = temp_val;
+  if (entry_a->row > entry_b->row) {
+    return 1;
   }
 
-  return i;
+  // Rows equal, compare columns
+  if (entry_a->col < entry_b->col) {
+    return -1;
+  }
+
+  if (entry_a->col > entry_b->col) {
+    return 1;
+  }
+
+  return 0;
 }
 
-// Quicksort implementation for COO matrix (without recursion)
-static void quicksort_coo(matgen_coo_matrix_t* matrix, matgen_size_t low,
-                          matgen_size_t high) {
-  if (low >= high) {
+// Fast sorting using stdlib qsort (highly optimized, O(n log n))
+static void sort_coo_stdlib(matgen_coo_matrix_t* matrix) {
+  if (matrix->nnz <= 1) {
     return;
   }
 
-  // Allocate stack for subarray bounds
-  struct {
-    matgen_size_t low;
-    matgen_size_t high;
-  }* stack = malloc((high - low + 1) * sizeof(*stack));
-
-  if (!stack) {
-    return;  // Allocation failed
+  // Allocate temporary array of entries
+  coo_entry_t* entries =
+      (coo_entry_t*)malloc(matrix->nnz * sizeof(coo_entry_t));
+  if (!entries) {
+    MATGEN_LOG_ERROR("Failed to allocate memory for sorting");
+    return;
   }
 
-  matgen_size_t stack_top = 0;
-
-  // Push initial range
-  stack[stack_top].low = low;
-  stack[stack_top].high = high;
-  stack_top++;
-
-  while (stack_top > 0) {
-    // Pop the next range
-    stack_top--;
-    matgen_size_t curr_low = stack[stack_top].low;
-    matgen_size_t curr_high = stack[stack_top].high;
-
-    if (curr_low < curr_high) {
-      matgen_size_t pi = partition(matrix, curr_low, curr_high);
-
-      // Push larger subarray first to minimize stack depth
-      matgen_size_t left_size = pi - curr_low;
-      matgen_size_t right_size = curr_high - pi;
-
-      if (left_size > right_size) {
-        // Push left first (larger)
-        if (pi > 0) {
-          stack[stack_top].low = curr_low;
-          stack[stack_top].high = pi - 1;
-          stack_top++;
-        }
-        // Then push right
-        stack[stack_top].low = pi + 1;
-        stack[stack_top].high = curr_high;
-        stack_top++;
-      } else {
-        // Push right first (larger or equal)
-        stack[stack_top].low = pi + 1;
-        stack[stack_top].high = curr_high;
-        stack_top++;
-        // Then push left
-        if (pi > 0) {
-          stack[stack_top].low = curr_low;
-          stack[stack_top].high = pi - 1;
-          stack_top++;
-        }
-      }
-    }
+  // Pack parallel arrays into struct array
+  for (matgen_size_t i = 0; i < matrix->nnz; i++) {
+    entries[i].row = matrix->row_indices[i];
+    entries[i].col = matrix->col_indices[i];
+    entries[i].value = matrix->values[i];
   }
 
-  free(stack);
+  // Sort using stdlib qsort (battle-tested, highly optimized)
+  qsort(entries, matrix->nnz, sizeof(coo_entry_t), compare_coo_entries);
+
+  // Unpack struct array back to parallel arrays
+  for (matgen_size_t i = 0; i < matrix->nnz; i++) {
+    matrix->row_indices[i] = entries[i].row;
+    matrix->col_indices[i] = entries[i].col;
+    matrix->values[i] = entries[i].value;
+  }
+
+  free(entries);
 }
 
 // =============================================================================
@@ -281,9 +238,11 @@ matgen_error_t matgen_coo_sort(matgen_coo_matrix_t* matrix) {
     return MATGEN_SUCCESS;
   }
 
-  MATGEN_LOG_DEBUG("Sorting COO matrix with %zu entries", matrix->nnz);
+  MATGEN_LOG_DEBUG("Sorting COO matrix with %zu entries using stdlib qsort",
+                   matrix->nnz);
 
-  quicksort_coo(matrix, 0, matrix->nnz - 1);
+  // Use standard library qsort (highly optimized)
+  sort_coo_stdlib(matrix);
 
   matrix->is_sorted = true;
 
