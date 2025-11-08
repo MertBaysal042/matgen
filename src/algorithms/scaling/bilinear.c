@@ -28,8 +28,10 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
 
   *result = NULL;
 
-  double row_scale = (double)new_rows / (double)source->rows;
-  double col_scale = (double)new_cols / (double)source->cols;
+  matgen_value_t row_scale =
+      (matgen_value_t)new_rows / (matgen_value_t)source->rows;
+  matgen_value_t col_scale =
+      (matgen_value_t)new_cols / (matgen_value_t)source->cols;
 
   MATGEN_LOG_DEBUG(
       "Bilinear scaling: %llu×%llu -> %llu×%llu (scale: %.3fx%.3f)",
@@ -39,9 +41,10 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
 
   // For upscaling, each source cell spreads to ~scale² target cells
   // For downscaling, multiple source cells contribute to each target
-  double avg_contributions_per_source = fmax(1.0, row_scale * col_scale);
-  size_t estimated_nnz =
-      (size_t)((double)source->nnz * avg_contributions_per_source * 1.2);
+  matgen_value_t avg_contributions_per_source =
+      max((matgen_value_t)1.0, row_scale * col_scale);
+  size_t estimated_nnz = (size_t)((matgen_value_t)source->nnz *
+                                  avg_contributions_per_source * 1.2);
 
   MATGEN_LOG_DEBUG("Estimated output NNZ: %zu", estimated_nnz);
 
@@ -53,9 +56,9 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
   }
 
   // Stack-allocated weight buffer for small blocks
-  double stack_weights[MATGEN_BILINEAR_STACK_THRESHOLD];
-  double* heap_weights = NULL;
-  double* weights = NULL;
+  matgen_value_t stack_weights[MATGEN_BILINEAR_STACK_THRESHOLD];
+  matgen_value_t* heap_weights = NULL;
+  matgen_value_t* weights = NULL;
 
   // Process each source entry
   matgen_error_t err = MATGEN_SUCCESS;
@@ -74,13 +77,13 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
 
       // Calculate target block boundaries (same as nearest neighbor)
       matgen_index_t dst_row_start =
-          (matgen_index_t)((double)src_row * row_scale);
+          (matgen_index_t)((matgen_value_t)src_row * row_scale);
       matgen_index_t dst_row_end =
-          (matgen_index_t)((double)(src_row + 1) * row_scale);
+          (matgen_index_t)((matgen_value_t)(src_row + 1) * row_scale);
       matgen_index_t dst_col_start =
-          (matgen_index_t)((double)src_col * col_scale);
+          (matgen_index_t)((matgen_value_t)src_col * col_scale);
       matgen_index_t dst_col_end =
-          (matgen_index_t)((double)(src_col + 1) * col_scale);
+          (matgen_index_t)((matgen_value_t)(src_col + 1) * col_scale);
 
       // Clamp to valid range
       dst_row_end = MATGEN_CLAMP(dst_row_end, 0, new_rows);
@@ -118,7 +121,8 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
         // Reallocate only if current heap buffer is too small
         if (!heap_weights || block_size > MATGEN_BILINEAR_STACK_THRESHOLD) {
           free(heap_weights);
-          heap_weights = (double*)malloc(block_size * sizeof(double));
+          heap_weights =
+              (matgen_value_t*)malloc(block_size * sizeof(matgen_value_t));
           if (!heap_weights) {
             MATGEN_LOG_ERROR(
                 "Failed to allocate weight buffer for block size %zu",
@@ -131,53 +135,71 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
       }
 
       // Calculate source cell center in target space
-      double src_center_row = ((double)src_row + 0.5) * row_scale;
-      double src_center_col = ((double)src_col + 0.5) * col_scale;
+      matgen_value_t src_center_row =
+          ((matgen_value_t)src_row + (matgen_value_t)0.5) * row_scale;
+      matgen_value_t src_center_col =
+          ((matgen_value_t)src_col + (matgen_value_t)0.5) * col_scale;
 
       // Pre-calculate normalization factors for bilinear weights
-      double row_norm_factor = (double)block_rows / 2.0;
-      double col_norm_factor = (double)block_cols / 2.0;
+      matgen_value_t row_norm_factor =
+          (matgen_value_t)block_rows / (matgen_value_t)2.0;
+      matgen_value_t col_norm_factor =
+          (matgen_value_t)block_cols / (matgen_value_t)2.0;
 
       // Single pass: calculate and store all weights
-      double total_weight = 0.0;
+      matgen_value_t total_weight = (matgen_value_t)0.0;
       size_t weight_idx = 0;
 
       for (matgen_index_t dr = 0; dr < block_rows; dr++) {
         matgen_index_t dst_row = dst_row_start + dr;
-        double dst_center_row = (double)dst_row + 0.5;
-        double row_dist = fabs(dst_center_row - src_center_row);
-        double row_weight = 1.0 - (row_dist / row_norm_factor);
+        matgen_value_t dst_center_row =
+            (matgen_value_t)dst_row + (matgen_value_t)0.5;
+        matgen_value_t row_dist = fabsf(dst_center_row - src_center_row);
+        matgen_value_t row_weight =
+            (matgen_value_t)1.0 - (row_dist / row_norm_factor);
 
         // Clamp to [0, 1]
-        row_weight = MATGEN_CLAMP(row_weight, 0.0, 1.0);
+        row_weight =
+            MATGEN_CLAMP(row_weight, (matgen_value_t)0.0, (matgen_value_t)1.0);
 
         for (matgen_index_t dc = 0; dc < block_cols; dc++) {
           matgen_index_t dst_col = dst_col_start + dc;
-          double dst_center_col = (double)dst_col + 0.5;
-          double col_dist = fabs(dst_center_col - src_center_col);
-          double col_weight = 1.0 - (col_dist / col_norm_factor);
+          matgen_value_t dst_center_col =
+              (matgen_value_t)dst_col + (matgen_value_t)0.5;
+          matgen_value_t col_dist = fabsf(dst_center_col - src_center_col);
+          matgen_value_t col_weight =
+              (matgen_value_t)1.0 - (col_dist / col_norm_factor);
 
           // Clamp to [0, 1]
-          col_weight = MATGEN_CLAMP(col_weight, 0.0, 1.0);
+          col_weight = MATGEN_CLAMP(col_weight, (matgen_value_t)0.0,
+                                    (matgen_value_t)1.0);
 
-          double weight = row_weight * col_weight;
+          matgen_value_t weight = row_weight * col_weight;
           weights[weight_idx++] = weight;
           total_weight += weight;
         }
       }
 
-      // Second pass: normalize and distribute using cached weights
+      // Pre-normalize weights to avoid per-cell division
+      if (total_weight > (matgen_value_t)0.0) {
+        for (size_t i = 0; i < block_size; i++) {
+          weights[i] /= total_weight;
+        }
+      }
+
+      // Distribute using pre-normalized weights
       weight_idx = 0;
       for (matgen_index_t dr = 0; dr < block_rows; dr++) {
         matgen_index_t dst_row = dst_row_start + dr;
         for (matgen_index_t dc = 0; dc < block_cols; dc++) {
           matgen_index_t dst_col = dst_col_start + dc;
 
-          double weight = weights[weight_idx++];
+          matgen_value_t normalized_weight = weights[weight_idx++];
 
-          // Normalize and distribute
-          if (weight > 0.0) {
-            matgen_value_t weighted_val = src_val * (weight / total_weight);
+          // Distribute (skip if effectively zero)
+          if (normalized_weight >
+              (matgen_value_t)1e-12) {  // Small threshold to avoid tiny values
+            matgen_value_t weighted_val = src_val * normalized_weight;
             err = matgen_accumulator_add(acc, dst_row, dst_col, weighted_val);
             if (err != MATGEN_SUCCESS) {
               MATGEN_LOG_ERROR("Failed to add entry to accumulator");
@@ -190,7 +212,7 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
   }
 
   size_t final_size = matgen_accumulator_size(acc);
-  double load_factor = matgen_accumulator_load_factor(acc);
+  matgen_value_t load_factor = matgen_accumulator_load_factor(acc);
 
   MATGEN_LOG_DEBUG("Accumulated %zu entries (estimated %zu, load factor: %.2f)",
                    final_size, estimated_nnz, load_factor);

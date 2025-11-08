@@ -102,7 +102,8 @@ TEST_F(COOMatrixTest, AddEntryWithResize) {
 
   // Add more than initial capacity
   for (matgen_index_t i = 0; i < 10; i++) {
-    EXPECT_EQ(matgen_coo_add_entry(matrix, i, i, (double)i), MATGEN_SUCCESS);
+    EXPECT_EQ(matgen_coo_add_entry(matrix, i, i, (matgen_value_t)i),
+              MATGEN_SUCCESS);
   }
 
   EXPECT_EQ(matrix->nnz, 10);

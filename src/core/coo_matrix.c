@@ -355,7 +355,7 @@ matgen_error_t matgen_coo_add_entry(matgen_coo_matrix_t* matrix,
   // Grow array if needed
   if (matrix->nnz >= matrix->capacity) {
     matgen_size_t new_capacity =
-        (matgen_size_t)((double)matrix->capacity * GROWTH_FACTOR) + 1;
+        (matgen_size_t)((matgen_value_t)matrix->capacity * GROWTH_FACTOR) + 1;
     matgen_error_t err = coo_resize(matrix, new_capacity);
     if (err != MATGEN_SUCCESS) {
       return err;
@@ -526,10 +526,11 @@ void matgen_coo_print_info(const matgen_coo_matrix_t* matrix, FILE* stream) {
     return;
   }
 
-  double sparsity = 0.0;
+  matgen_value_t sparsity = 0.0;
   if (matrix->rows > 0 && matrix->cols > 0) {
     u64 total_elements = (u64)matrix->rows * (u64)matrix->cols;
-    sparsity = (100.0 * (double)matrix->nnz) / (double)total_elements;
+    sparsity =
+        (100.0 * (matgen_value_t)matrix->nnz) / (matgen_value_t)total_elements;
   }
 
   fprintf(stream, "COO Matrix Information:\n");

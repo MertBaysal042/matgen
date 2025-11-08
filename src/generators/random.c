@@ -31,17 +31,19 @@ static u32 rng_next(rng_state_t* rng) {
 }
 
 // Generate random f64 in [0, 1)
-static f64 rng_uniform_01(rng_state_t* rng) {
-  return (f64)rng_next(rng) / (f64)0xFFFFFFFFU;
+static matgen_value_t rng_uniform_01(rng_state_t* rng) {
+  return (matgen_value_t)rng_next(rng) / (matgen_value_t)0xFFFFFFFFU;
 }
 
 // Generate random f64 in [min, max]
-static f64 rng_uniform(rng_state_t* rng, f64 min, f64 max) {
+static matgen_value_t rng_uniform(rng_state_t* rng, matgen_value_t min,
+                                  matgen_value_t max) {
   return min + (rng_uniform_01(rng) * (max - min));
 }
 
 // Generate random f64 from normal distribution (Box-Muller)
-static f64 rng_normal(rng_state_t* rng, f64 mean, f64 stddev) {
+static matgen_value_t rng_normal(rng_state_t* rng, matgen_value_t mean,
+                                 matgen_value_t stddev) {
   f64 u1 = rng_uniform_01(rng);
   f64 u2 = rng_uniform_01(rng);
 
@@ -51,12 +53,12 @@ static f64 rng_normal(rng_state_t* rng, f64 mean, f64 stddev) {
   }
 
   f64 z0 = sqrt(-2.0 * log(u1)) * cos(2.0 * MATGEN_PI * u2);
-  return mean + (stddev * z0);
+  return mean + (stddev * (matgen_value_t)z0);
 }
 
 // Generate value based on distribution
-static f64 generate_value(rng_state_t* rng,
-                          const matgen_random_config_t* config) {
+static matgen_value_t generate_value(rng_state_t* rng,
+                                     const matgen_random_config_t* config) {
   switch (config->distribution) {
     case MATGEN_DIST_UNIFORM:
       return rng_uniform(rng, config->min_value, config->max_value);
@@ -68,7 +70,7 @@ static f64 generate_value(rng_state_t* rng,
       return config->constant_value;
 
     default:
-      return 0.0;
+      return 0.0F;
   }
 }
 
@@ -88,14 +90,14 @@ void matgen_random_config_init(matgen_random_config_t* config,
   config->rows = rows;
   config->cols = cols;
   config->nnz = nnz;
-  config->density = 0.0;
+  config->density = (matgen_value_t)0.0;
 
   config->distribution = MATGEN_DIST_UNIFORM;
-  config->min_value = 0.0;
-  config->max_value = 1.0;
-  config->mean = 0.0;
-  config->stddev = 1.0;
-  config->constant_value = 1.0;
+  config->min_value = (matgen_value_t)0.0;
+  config->max_value = (matgen_value_t)1.0;
+  config->mean = (matgen_value_t)0.0;
+  config->stddev = (matgen_value_t)1.0;
+  config->constant_value = (matgen_value_t)1.0;
 
   config->seed = 0;  // Time-based
   config->allow_duplicates = false;
@@ -162,7 +164,7 @@ matgen_coo_matrix_t* matgen_random_generate(
     for (matgen_size_t i = 0; i < nnz; i++) {
       matgen_index_t row = (matgen_index_t)(rng_next(&rng) % config->rows);
       matgen_index_t col = (matgen_index_t)(rng_next(&rng) % config->cols);
-      f64 value = generate_value(&rng, config);
+      matgen_value_t value = generate_value(&rng, config);
 
       if (matgen_coo_add_entry(matrix, row, col, value) != MATGEN_SUCCESS) {
         MATGEN_LOG_ERROR("Failed to add entry at (%llu, %llu)",
@@ -187,7 +189,7 @@ matgen_coo_matrix_t* matgen_random_generate(
 
         // Check if already exists
         if (!matgen_coo_has_entry(matrix, row, col)) {
-          f64 value = generate_value(&rng, config);
+          matgen_value_t value = generate_value(&rng, config);
           if (matgen_coo_add_entry(matrix, row, col, value) == MATGEN_SUCCESS) {
             added++;
           }
@@ -233,7 +235,7 @@ matgen_coo_matrix_t* matgen_random_generate(
           return NULL;
         }
 
-        f64 value = generate_value(&rng, config);
+        matgen_value_t value = generate_value(&rng, config);
         if (matgen_coo_add_entry(matrix, row, col, value) != MATGEN_SUCCESS) {
           MATGEN_LOG_ERROR("Failed to add entry");
           matgen_coo_destroy(matrix);
@@ -263,7 +265,8 @@ matgen_coo_matrix_t* matgen_random_generate(
 matgen_coo_matrix_t* matgen_random_diagonal(matgen_index_t rows,
                                             matgen_index_t cols,
                                             matgen_distribution_t distribution,
-                                            f64 min_value, f64 max_value,
+                                            matgen_value_t min_value,
+                                            matgen_value_t max_value,
                                             u32 seed) {
   matgen_index_t diag_size = MATGEN_MIN(rows, cols);
 
@@ -294,7 +297,7 @@ matgen_coo_matrix_t* matgen_random_diagonal(matgen_index_t rows,
   }
 
   for (matgen_index_t i = 0; i < diag_size; i++) {
-    f64 value = generate_value(&rng, &config);
+    matgen_value_t value = generate_value(&rng, &config);
     matgen_coo_add_entry(matrix, i, i, value);
   }
 
@@ -303,8 +306,8 @@ matgen_coo_matrix_t* matgen_random_diagonal(matgen_index_t rows,
 }
 
 matgen_coo_matrix_t* matgen_random_tridiagonal(
-    matgen_index_t size, matgen_distribution_t distribution, f64 min_value,
-    f64 max_value, u32 seed) {
+    matgen_index_t size, matgen_distribution_t distribution,
+    matgen_value_t min_value, matgen_value_t max_value, u32 seed) {
   if (size == 0) {
     MATGEN_LOG_ERROR("Invalid size: 0");
     return NULL;
@@ -342,19 +345,19 @@ matgen_coo_matrix_t* matgen_random_tridiagonal(
 
   // Main diagonal
   for (matgen_index_t i = 0; i < size; i++) {
-    f64 value = generate_value(&rng, &config);
+    matgen_value_t value = generate_value(&rng, &config);
     matgen_coo_add_entry(matrix, i, i, value);
   }
 
   // Upper diagonal
   for (matgen_index_t i = 0; i < size - 1; i++) {
-    f64 value = generate_value(&rng, &config);
+    matgen_value_t value = generate_value(&rng, &config);
     matgen_coo_add_entry(matrix, i, i + 1, value);
   }
 
   // Lower diagonal
   for (matgen_index_t i = 0; i < size - 1; i++) {
-    f64 value = generate_value(&rng, &config);
+    matgen_value_t value = generate_value(&rng, &config);
     matgen_coo_add_entry(matrix, i + 1, i, value);
   }
 

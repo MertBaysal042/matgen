@@ -125,7 +125,8 @@ matgen_error_t matgen_argparser_add_u64(matgen_argparser_t* parser,
                                         u64 default_val, const char* help);
 
 /**
- * @brief Add a double precision float option (e.g., --threshold=0.5, -t 0.5)
+ * @brief Add a matgen_value_t precision float option (e.g., --threshold=0.5, -t
+ * 0.5)
  *
  * @param parser Parser instance
  * @param short_opt Short option (can be NULL)

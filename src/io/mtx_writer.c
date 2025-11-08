@@ -43,9 +43,9 @@ static inline int fast_uint64_to_str(unsigned long long val, char* buf) {
   return len;
 }
 
-// Fast double to string conversion for scientific notation
+// Fast matgen_value_t to string conversion for scientific notation
 // This is a simplified version optimized for %.16g format
-static inline int fast_double_to_str(double val, char* buf) {
+static inline int fast_double_to_str(matgen_value_t val, char* buf) {
   // Handle special cases
   if (val == 0.0) {
     *buf++ = '0';
@@ -70,7 +70,8 @@ static inline int fast_double_to_str(double val, char* buf) {
 // Optimized version that writes directly to buffer without bounds checking
 // Assumes buffer has enough space (caller must ensure this)
 static inline int write_entry_unchecked(char* buf, unsigned long long row,
-                                        unsigned long long col, double value) {
+                                        unsigned long long col,
+                                        matgen_value_t value) {
   char* start = buf;
 
   // Write row
@@ -96,7 +97,7 @@ static inline int write_entry_unchecked(char* buf, unsigned long long row,
 // =============================================================================
 static matgen_error_t write_matrix_entries_buffered(
     FILE* f, const matgen_index_t* row_indices,
-    const matgen_index_t* col_indices, const double* values,
+    const matgen_index_t* col_indices, const matgen_value_t* values,
     matgen_size_t nnz) {
   // Allocate batch buffer
   char* batch_buffer = (char*)malloc((int)BATCH_BUFFER_SIZE);
@@ -108,8 +109,8 @@ static matgen_error_t write_matrix_entries_buffered(
   size_t buffer_pos = 0;
 
   // Pre-calculate worst-case line length:
-  // 20 digits + space + 20 digits + space + 24 chars (double) + newline ≈ 66
-  // bytes
+  // 20 digits + space + 20 digits + space + 24 chars (matgen_value_t) + newline
+  // ≈ 66 bytes
   const size_t max_line_length = 66;
   const size_t flush_threshold = (int)BATCH_BUFFER_SIZE - max_line_length;
 

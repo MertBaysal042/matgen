@@ -247,14 +247,17 @@ static void print_matrix_stats(const char* label,
     }
   }
 
-  matgen_value_t mean = matrix->nnz > 0 ? sum / (double)matrix->nnz : 0.0;
+  matgen_value_t mean =
+      matrix->nnz > 0 ? sum / (matgen_value_t)matrix->nnz : (matgen_value_t)0.0;
   matgen_value_t variance =
-      matrix->nnz > 0 ? (sum_sq / (double)matrix->nnz) - (mean * mean) : 0.0;
-  matgen_value_t std_dev = sqrt(variance);
-  matgen_value_t frobenius = sqrt(sum_sq);
+      matrix->nnz > 0 ? (sum_sq / (matgen_value_t)matrix->nnz) - (mean * mean)
+                      : (matgen_value_t)0.0;
+  matgen_value_t std_dev = (matgen_value_t)sqrt(variance);
+  matgen_value_t frobenius = (matgen_value_t)sqrt(sum_sq);
 
-  double density = (double)matrix->nnz / (double)(matrix->rows * matrix->cols);
-  double sparsity = 1.0 - density;
+  matgen_value_t density = (matgen_value_t)matrix->nnz /
+                           (matgen_value_t)(matrix->rows * matrix->cols);
+  matgen_value_t sparsity = (matgen_value_t)1.0 - density;
 
   printf("\n%s:\n", label);
   printf("  Dimensions:      %llu × %llu\n", (unsigned long long)matrix->rows,
@@ -389,7 +392,7 @@ int main(int argc, char** argv) {
   }
 
   clock_t end = clock();
-  double elapsed_sec = (double)(end - start) / CLOCKS_PER_SEC;
+  matgen_value_t elapsed_sec = (matgen_value_t)(end - start) / CLOCKS_PER_SEC;
 
   if (err != MATGEN_SUCCESS) {
     fprintf(stderr, "Error: Matrix scaling failed with error code %d\n", err);
@@ -442,10 +445,12 @@ int main(int argc, char** argv) {
            (unsigned long long)output_csr->cols,
            (unsigned long long)output_csr->nnz);
 
-    double input_density =
-        (double)input_csr->nnz / (double)(input_csr->rows * input_csr->cols);
-    double output_density =
-        (double)output_csr->nnz / (double)(output_csr->rows * output_csr->cols);
+    matgen_value_t input_density =
+        (matgen_value_t)input_csr->nnz /
+        (matgen_value_t)(input_csr->rows * input_csr->cols);
+    matgen_value_t output_density =
+        (matgen_value_t)output_csr->nnz /
+        (matgen_value_t)(output_csr->rows * output_csr->cols);
 
     printf("Input density:   %.6f (%.2f%%)\n", input_density,
            input_density * 100.0);

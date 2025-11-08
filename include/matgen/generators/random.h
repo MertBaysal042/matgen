@@ -32,20 +32,21 @@ typedef struct {
   matgen_index_t rows;  // Number of rows
   matgen_index_t cols;  // Number of columns
   matgen_size_t nnz;    // Number of non-zeros to generate
-  f64 density;          // Alternative: density (0.0-1.0), overrides nnz if > 0
+  matgen_value_t
+      density;  // Alternative: density (0.0-1.0), overrides nnz if > 0
 
   matgen_distribution_t distribution;  // Value distribution type
 
   // Uniform distribution parameters
-  f64 min_value;  // Minimum value (uniform)
-  f64 max_value;  // Maximum value (uniform)
+  matgen_value_t min_value;  // Minimum value (uniform)
+  matgen_value_t max_value;  // Maximum value (uniform)
 
   // Normal distribution parameters
-  f64 mean;    // Mean (normal)
-  f64 stddev;  // Standard deviation (normal)
+  matgen_value_t mean;    // Mean (normal)
+  matgen_value_t stddev;  // Standard deviation (normal)
 
   // Constant distribution
-  f64 constant_value;  // Constant value
+  matgen_value_t constant_value;  // Constant value
 
   u32 seed;  // Random seed (0 = use time-based seed)
 
@@ -104,8 +105,8 @@ matgen_coo_matrix_t* matgen_random_generate(
 matgen_coo_matrix_t* matgen_random_diagonal(matgen_index_t rows,
                                             matgen_index_t cols,
                                             matgen_distribution_t distribution,
-                                            f64 min_value, f64 max_value,
-                                            u32 seed);
+                                            matgen_value_t min_value,
+                                            matgen_value_t max_value, u32 seed);
 
 /**
  * @brief Generate a random tridiagonal matrix
@@ -120,8 +121,8 @@ matgen_coo_matrix_t* matgen_random_diagonal(matgen_index_t rows,
  * @return New COO matrix, or NULL on error
  */
 matgen_coo_matrix_t* matgen_random_tridiagonal(
-    matgen_index_t size, matgen_distribution_t distribution, f64 min_value,
-    f64 max_value, u32 seed);
+    matgen_index_t size, matgen_distribution_t distribution,
+    matgen_value_t min_value, matgen_value_t max_value, u32 seed);
 
 /**
  * @brief Generate a random sparse matrix with specified sparsity pattern

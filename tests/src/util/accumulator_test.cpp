@@ -242,7 +242,7 @@ TEST(AccumulatorTest, ManyUniqueEntries) {
 
   // Add many unique entries
   for (size_t i = 0; i < num_entries; i++) {
-    matgen_error_t err = matgen_accumulator_add(acc, i, i, (double)i);
+    matgen_error_t err = matgen_accumulator_add(acc, i, i, (matgen_value_t)i);
     EXPECT_EQ(err, MATGEN_SUCCESS);
   }
 
@@ -253,7 +253,7 @@ TEST(AccumulatorTest, ManyUniqueEntries) {
     matgen_value_t value;
     matgen_error_t err = matgen_accumulator_get(acc, i, i, &value);
     EXPECT_EQ(err, MATGEN_SUCCESS);
-    EXPECT_DOUBLE_EQ(value, (double)i);
+    EXPECT_DOUBLE_EQ(value, (matgen_value_t)i);
   }
 
   matgen_accumulator_destroy(acc);
@@ -278,7 +278,7 @@ TEST(AccumulatorTest, ManyCollisions) {
   matgen_value_t value;
   matgen_error_t err = matgen_accumulator_get(acc, row, col, &value);
   EXPECT_EQ(err, MATGEN_SUCCESS);
-  EXPECT_DOUBLE_EQ(value, (double)num_adds);
+  EXPECT_DOUBLE_EQ(value, (matgen_value_t)num_adds);
 
   matgen_accumulator_destroy(acc);
 }
@@ -293,7 +293,7 @@ TEST(AccumulatorTest, AutoResize) {
 
   // Add entries until resize triggers
   for (size_t i = 0; i < 100; i++) {
-    matgen_accumulator_add(acc, i, i, (double)i);
+    matgen_accumulator_add(acc, i, i, (matgen_value_t)i);
   }
 
   // Capacity should have increased

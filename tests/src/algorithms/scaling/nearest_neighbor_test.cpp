@@ -119,7 +119,7 @@ TEST(NearestNeighborTest, ScaleDown) {
   // Verify the summed values
   // Target (0,0) should have 1.0 + 2.0 = 3.0
   // Target (1,1) should have 3.0 + 4.0 = 7.0
-  double total_sum = 0.0;
+  matgen_value_t total_sum = 0.0;
   for (matgen_index_t i = 0; i < result->rows; i++) {
     for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
          j++) {
@@ -209,7 +209,7 @@ TEST(NearestNeighborTest, UniformDistribution) {
   EXPECT_EQ(result->nnz, 4);
 
   // With uniform distribution: 12.0 / 4 = 3.0 per cell
-  double expected_value = 3.0;
+  matgen_value_t expected_value = 3.0;
 
   for (matgen_index_t i = 0; i < result->rows; i++) {
     for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
@@ -219,7 +219,7 @@ TEST(NearestNeighborTest, UniformDistribution) {
   }
 
   // Verify sum conservation
-  double total_sum = 0.0;
+  matgen_value_t total_sum = 0.0;
   for (matgen_index_t i = 0; i < result->rows; i++) {
     for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
          j++) {
@@ -244,8 +244,8 @@ TEST(NearestNeighborTest, DensityPreservation) {
   ASSERT_NE(source, nullptr);
   matgen_coo_destroy(coo);
 
-  double source_density =
-      (double)source->nnz / (double)(source->rows * source->cols);
+  matgen_value_t source_density = (matgen_value_t)source->nnz /
+                                  (matgen_value_t)(source->rows * source->cols);
 
   // Test multiple scale factors
   matgen_index_t scales[] = {2, 3, 4, 5};
@@ -258,8 +258,9 @@ TEST(NearestNeighborTest, DensityPreservation) {
     ASSERT_EQ(err, MATGEN_SUCCESS);
     ASSERT_NE(result, nullptr);
 
-    double result_density =
-        (double)result->nnz / (double)(result->rows * result->cols);
+    matgen_value_t result_density =
+        (matgen_value_t)result->nnz /
+        (matgen_value_t)(result->rows * result->cols);
 
     // Density should be preserved
     EXPECT_NEAR(result_density, source_density, 1e-10)
@@ -285,7 +286,7 @@ TEST(NearestNeighborTest, ValueConservation) {
   matgen_coo_destroy(coo);
 
   // Calculate original sum
-  double original_sum = 1.5 + 2.5 + 3.5 + 4.5 + 5.5;  // = 17.5
+  matgen_value_t original_sum = 1.5 + 2.5 + 3.5 + 4.5 + 5.5;  // = 17.5
 
   // Scale by various factors
   struct {
@@ -308,7 +309,7 @@ TEST(NearestNeighborTest, ValueConservation) {
     ASSERT_NE(result, nullptr);
 
     // Calculate result sum
-    double result_sum = 0.0;
+    matgen_value_t result_sum = 0.0;
     for (matgen_index_t i = 0; i < result->rows; i++) {
       for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
            j++) {
@@ -337,7 +338,7 @@ TEST(NearestNeighborTest, FractionalScaling) {
   ASSERT_NE(source, nullptr);
   matgen_coo_destroy(coo);
 
-  double original_sum = 30.0;
+  matgen_value_t original_sum = 30.0;
 
   // Scale 4x4 -> 6x6 (1.5x in each dimension)
   matgen_csr_matrix_t* result = nullptr;
@@ -348,7 +349,7 @@ TEST(NearestNeighborTest, FractionalScaling) {
   ASSERT_NE(result, nullptr);
 
   // Calculate result sum
-  double result_sum = 0.0;
+  matgen_value_t result_sum = 0.0;
   for (matgen_index_t i = 0; i < result->rows; i++) {
     for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
          j++) {

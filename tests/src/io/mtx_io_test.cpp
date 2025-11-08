@@ -405,9 +405,9 @@ TEST_F(MTXIOTest, RoundTrip_COO) {
 
   // Add some entries
   for (matgen_index_t i = 0; i < 10; i++) {
-    matgen_coo_add_entry(coo, i, i, (double)i);
+    matgen_coo_add_entry(coo, i, i, (matgen_value_t)i);
     if (i < 9) {
-      matgen_coo_add_entry(coo, i, i + 1, (double)(i + 10));
+      matgen_coo_add_entry(coo, i, i + 1, (matgen_value_t)(i + 10));
     }
   }
 
@@ -439,9 +439,9 @@ TEST_F(MTXIOTest, RoundTrip_CSR) {
   ASSERT_NE(coo, nullptr);
 
   for (matgen_index_t i = 0; i < 5; i++) {
-    matgen_coo_add_entry(coo, i, i, (double)i);
+    matgen_coo_add_entry(coo, i, i, (matgen_value_t)i);
     if (i < 4) {
-      matgen_coo_add_entry(coo, i, i + 1, (double)(i + 5));
+      matgen_coo_add_entry(coo, i, i + 1, (matgen_value_t)(i + 5));
     }
   }
 

@@ -161,7 +161,7 @@ TEST(BilinearTest, ScaleDown) {
   EXPECT_EQ(result->nnz, 2);
 
   // Verify sum conservation
-  double total_sum = 0.0;
+  matgen_value_t total_sum = 0.0;
   for (matgen_index_t i = 0; i < result->rows; i++) {
     for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
          j++) {
@@ -211,7 +211,7 @@ TEST(BilinearTest, ValueConservation) {
   matgen_coo_destroy(coo);
 
   // Calculate sum of source
-  double source_sum = 10.0;
+  matgen_value_t source_sum = 10.0;
 
   // Scale 2x2 -> 4x4
   matgen_csr_matrix_t* result = nullptr;
@@ -221,7 +221,7 @@ TEST(BilinearTest, ValueConservation) {
   ASSERT_NE(result, nullptr);
 
   // Calculate sum of result
-  double result_sum = 0.0;
+  matgen_value_t result_sum = 0.0;
   for (matgen_index_t i = 0; i < result->rows; i++) {
     for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
          j++) {
@@ -248,8 +248,8 @@ TEST(BilinearTest, DensityPreservation) {
   ASSERT_NE(source, nullptr);
   matgen_coo_destroy(coo);
 
-  double source_density =
-      (double)source->nnz / (double)(source->rows * source->cols);
+  matgen_value_t source_density = (matgen_value_t)source->nnz /
+                                  (matgen_value_t)(source->rows * source->cols);
 
   // Test multiple scale factors
   matgen_index_t scales[] = {2, 3, 4};
@@ -262,8 +262,9 @@ TEST(BilinearTest, DensityPreservation) {
     ASSERT_EQ(err, MATGEN_SUCCESS);
     ASSERT_NE(result, nullptr);
 
-    double result_density =
-        (double)result->nnz / (double)(result->rows * result->cols);
+    matgen_value_t result_density =
+        (matgen_value_t)result->nnz /
+        (matgen_value_t)(result->rows * result->cols);
 
     // Density should be preserved
     EXPECT_NEAR(result_density, source_density, 1e-10)
@@ -289,7 +290,7 @@ TEST(BilinearTest, ComprehensiveValueConservation) {
   matgen_coo_destroy(coo);
 
   // Calculate original sum
-  double original_sum = 1.5 + 2.5 + 3.5 + 4.5 + 5.5;  // = 17.5
+  matgen_value_t original_sum = 1.5 + 2.5 + 3.5 + 4.5 + 5.5;  // = 17.5
 
   // Scale by various factors
   struct {
@@ -312,7 +313,7 @@ TEST(BilinearTest, ComprehensiveValueConservation) {
     ASSERT_NE(result, nullptr);
 
     // Calculate result sum
-    double result_sum = 0.0;
+    matgen_value_t result_sum = 0.0;
     for (matgen_index_t i = 0; i < result->rows; i++) {
       for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
            j++) {
@@ -351,8 +352,8 @@ TEST(BilinearTest, WeightedDistribution) {
   EXPECT_EQ(result->nnz, 9);
 
   // Find min and max values
-  double min_val = 1e10;
-  double max_val = -1e10;
+  matgen_value_t min_val = 1e10;
+  matgen_value_t max_val = -1e10;
 
   for (matgen_index_t i = 0; i < result->rows; i++) {
     for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
@@ -368,7 +369,7 @@ TEST(BilinearTest, WeightedDistribution) {
   EXPECT_GT(max_val / min_val, 1.5);
 
   // Verify sum conservation
-  double total_sum = 0.0;
+  matgen_value_t total_sum = 0.0;
   for (matgen_index_t i = 0; i < result->rows; i++) {
     for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
          j++) {

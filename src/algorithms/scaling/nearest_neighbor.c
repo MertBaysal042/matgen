@@ -28,8 +28,10 @@ matgen_error_t matgen_scale_nearest_neighbor(
 
   *result = NULL;
 
-  double row_scale = (double)new_rows / (double)source->rows;
-  double col_scale = (double)new_cols / (double)source->cols;
+  matgen_value_t row_scale =
+      (matgen_value_t)new_rows / (matgen_value_t)source->rows;
+  matgen_value_t col_scale =
+      (matgen_value_t)new_cols / (matgen_value_t)source->cols;
 
   MATGEN_LOG_DEBUG(
       "Nearest neighbor scaling: %llu×%llu -> %llu×%llu (scale: %.3fx%.3f)",
@@ -39,7 +41,7 @@ matgen_error_t matgen_scale_nearest_neighbor(
 
   // Estimate: each source entry expands to ~scale² target entries
   size_t estimated_nnz =
-      (size_t)((double)source->nnz * row_scale * col_scale * 1.1);
+      (size_t)((matgen_value_t)source->nnz * row_scale * col_scale * 1.1);
 
   MATGEN_LOG_DEBUG("Estimated output NNZ: %zu", estimated_nnz);
 
@@ -66,13 +68,13 @@ matgen_error_t matgen_scale_nearest_neighbor(
 
       // Calculate target block boundaries
       matgen_index_t dst_row_start =
-          (matgen_index_t)((double)src_row * row_scale);
+          (matgen_index_t)((matgen_value_t)src_row * row_scale);
       matgen_index_t dst_row_end =
-          (matgen_index_t)((double)(src_row + 1) * row_scale);
+          (matgen_index_t)((matgen_value_t)(src_row + 1) * row_scale);
       matgen_index_t dst_col_start =
-          (matgen_index_t)((double)src_col * col_scale);
+          (matgen_index_t)((matgen_value_t)src_col * col_scale);
       matgen_index_t dst_col_end =
-          (matgen_index_t)((double)(src_col + 1) * col_scale);
+          (matgen_index_t)((matgen_value_t)(src_col + 1) * col_scale);
 
       // Clamp to valid range
       dst_row_end = MATGEN_CLAMP(dst_row_end, 0, new_rows);
@@ -89,7 +91,8 @@ matgen_error_t matgen_scale_nearest_neighbor(
       // Calculate block size
       matgen_index_t block_rows = dst_row_end - dst_row_start;
       matgen_index_t block_cols = dst_col_end - dst_col_start;
-      double block_size = (double)block_rows * (double)block_cols;
+      matgen_value_t block_size =
+          (matgen_value_t)block_rows * (matgen_value_t)block_cols;
 
       // Distribute value uniformly across block
       // Each cell gets: src_val / block_size
@@ -113,7 +116,7 @@ matgen_error_t matgen_scale_nearest_neighbor(
   }
 
   size_t final_size = matgen_accumulator_size(acc);
-  double load_factor = matgen_accumulator_load_factor(acc);
+  matgen_value_t load_factor = matgen_accumulator_load_factor(acc);
 
   MATGEN_LOG_DEBUG("Accumulated %zu entries (estimated %zu, load factor: %.2f)",
                    final_size, estimated_nnz, load_factor);

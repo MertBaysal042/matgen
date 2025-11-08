@@ -16,7 +16,8 @@
 // =============================================================================
 
 /**
- * @brief Improved hash function using FNV-1a algorithm
+ * @brief Improved hash function using 64-bit FNV-1a algorithm for better
+ * distribution
  * @param row Row index
  * @param col Column index
  * @param capacity Hash table capacity (must be power of 2)
@@ -24,22 +25,22 @@
  */
 static inline size_t hash_coord(matgen_index_t row, matgen_index_t col,
                                 size_t capacity) {
-  // FNV-1a hash provides better distribution than simple multiplication
-  const size_t FNV_OFFSET = 2166136261U;
-  const size_t FNV_PRIME = 16777619U;
+  // 64-bit FNV-1a provides better distribution, especially on 64-bit systems
+  const u64 FNV_OFFSET = 14695981039346656037ULL;
+  const u64 FNV_PRIME = 1099511628211ULL;
 
-  size_t hash = FNV_OFFSET;
+  u64 hash = FNV_OFFSET;
 
   // Hash row
-  hash ^= (size_t)row;
+  hash ^= (u64)row;
   hash *= FNV_PRIME;
 
   // Hash column
-  hash ^= (size_t)col;
+  hash ^= (u64)col;
   hash *= FNV_PRIME;
 
   // Use bitwise AND for power-of-2 capacity (faster than modulo)
-  return hash & (capacity - 1);
+  return (size_t)(hash & ((u64)capacity - 1));
 }
 
 /**
@@ -61,6 +62,25 @@ static inline size_t next_power_of_2(size_t n) {
 #endif
 
   return n + 1;
+}
+
+// =============================================================================
+// Internal Helper Functions
+// =============================================================================
+
+/**
+ * @brief Get the final value for an entry, applying averaging if necessary
+ * @param entry The accumulator entry
+ * @param policy The collision policy
+ * @return The computed value
+ */
+static inline matgen_value_t get_entry_value(const matgen_accum_entry_t* entry,
+                                             matgen_collision_policy_t policy) {
+  matgen_value_t value = entry->value;
+  if (policy == MATGEN_COLLISION_AVG && entry->count > 1) {
+    value /= (matgen_value_t)entry->count;
+  }
+  return value;
 }
 
 // =============================================================================
@@ -174,7 +194,7 @@ matgen_accumulator_t* matgen_accumulator_create(
   for (size_t i = 0; i < capacity; i++) {
     acc->entries[i].row = (matgen_index_t)-1;
     acc->entries[i].col = 0;
-    acc->entries[i].value = 0.0;
+    acc->entries[i].value = (matgen_value_t)0.0;
     acc->entries[i].count = 0;
   }
 
@@ -199,7 +219,8 @@ matgen_error_t matgen_accumulator_add(matgen_accumulator_t* acc,
   }
 
   // Check if resize is needed (before insertion to avoid full table)
-  double load_factor = (double)(acc->size + 1) / (double)acc->capacity;
+  matgen_value_t load_factor =
+      (matgen_value_t)(acc->size + 1) / (matgen_value_t)acc->capacity;
   if (load_factor > ACCUMULATOR_LOAD_FACTOR_THRESHOLD) {
     matgen_error_t err = accumulator_resize(acc, acc->capacity * 2);
     if (err != MATGEN_SUCCESS) {
@@ -288,13 +309,7 @@ matgen_error_t matgen_accumulator_get(const matgen_accumulator_t* acc,
   while (acc->entries[idx].row != (matgen_index_t)-1) {
     if (acc->entries[idx].row == row && acc->entries[idx].col == col) {
       // Found the entry
-      *value = acc->entries[idx].value;
-
-      // Apply averaging if needed
-      if (acc->policy == MATGEN_COLLISION_AVG && acc->entries[idx].count > 1) {
-        *value /= (matgen_value_t)acc->entries[idx].count;
-      }
-
+      *value = get_entry_value(&acc->entries[idx], acc->policy);
       return MATGEN_SUCCESS;
     }
 
@@ -318,11 +333,11 @@ size_t matgen_accumulator_capacity(const matgen_accumulator_t* acc) {
   return acc ? acc->capacity : 0;
 }
 
-double matgen_accumulator_load_factor(const matgen_accumulator_t* acc) {
+matgen_value_t matgen_accumulator_load_factor(const matgen_accumulator_t* acc) {
   if (!acc || acc->capacity == 0) {
-    return 0.0;
+    return (matgen_value_t)0.0;
   }
-  return (double)acc->size / (double)acc->capacity;
+  return (matgen_value_t)acc->size / (matgen_value_t)acc->capacity;
 }
 
 matgen_error_t matgen_accumulator_clear(matgen_accumulator_t* acc) {
@@ -334,7 +349,7 @@ matgen_error_t matgen_accumulator_clear(matgen_accumulator_t* acc) {
   for (size_t i = 0; i < acc->capacity; i++) {
     acc->entries[i].row = (matgen_index_t)-1;
     acc->entries[i].col = 0;
-    acc->entries[i].value = 0.0;
+    acc->entries[i].value = (matgen_value_t)0.0;
     acc->entries[i].count = 0;
   }
 
@@ -365,12 +380,7 @@ matgen_error_t matgen_accumulator_foreach(
 
   for (size_t i = 0; i < acc->capacity; i++) {
     if (acc->entries[i].row != (matgen_index_t)-1) {
-      matgen_value_t value = acc->entries[i].value;
-
-      // Apply averaging if needed
-      if (acc->policy == MATGEN_COLLISION_AVG && acc->entries[i].count > 1) {
-        value /= (matgen_value_t)acc->entries[i].count;
-      }
+      matgen_value_t value = get_entry_value(&acc->entries[i], acc->policy);
 
       // Call user callback
       bool should_continue = callback(acc->entries[i].row, acc->entries[i].col,
@@ -401,12 +411,7 @@ matgen_coo_matrix_t* matgen_accumulator_to_coo(const matgen_accumulator_t* acc,
   // Add all entries to COO matrix
   for (size_t i = 0; i < acc->capacity; i++) {
     if (acc->entries[i].row != (matgen_index_t)-1) {
-      matgen_value_t value = acc->entries[i].value;
-
-      // Apply averaging if needed
-      if (acc->policy == MATGEN_COLLISION_AVG && acc->entries[i].count > 1) {
-        value /= (matgen_value_t)acc->entries[i].count;
-      }
+      matgen_value_t value = get_entry_value(&acc->entries[i], acc->policy);
 
       matgen_error_t err = matgen_coo_add_entry(coo, acc->entries[i].row,
                                                 acc->entries[i].col, value);

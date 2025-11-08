@@ -134,7 +134,7 @@ size_t matgen_accumulator_capacity(const matgen_accumulator_t* acc);
  * @param acc Accumulator to query
  * @return Load factor in range [0.0, 1.0]
  */
-double matgen_accumulator_load_factor(const matgen_accumulator_t* acc);
+matgen_value_t matgen_accumulator_load_factor(const matgen_accumulator_t* acc);
 
 /**
  * @brief Clear all entries from the accumulator

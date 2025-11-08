@@ -93,7 +93,7 @@ TEST_F(TypesTest, MatGenIndexType) {
 }
 
 TEST_F(TypesTest, MatGenValueType) {
-  // Should be double precision (f64)
+  // Should be matgen_value_t precision (f64)
   EXPECT_EQ(sizeof(matgen_value_t), 8);
   EXPECT_TRUE(std::is_floating_point<matgen_value_t>::value);
 }
