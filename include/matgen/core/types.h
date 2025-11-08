@@ -79,7 +79,8 @@ typedef enum {
   MATGEN_ERROR_UNSUPPORTED = -4,       // Unsupported operation
   MATGEN_ERROR_INVALID_FORMAT = -5,    // Invalid file format
   MATGEN_ERROR_MPI = -6,               // MPI-related error
-  MATGEN_ERROR_CUDA = -7               // CUDA-related error
+  MATGEN_ERROR_CUDA = -7,              // CUDA-related error
+  MATGEN_ERROR_UNKNOWN = -9999         // Unknown error
 } matgen_error_t;
 
 // =============================================================================

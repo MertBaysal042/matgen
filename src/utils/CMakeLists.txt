@@ -4,4 +4,5 @@ target_sources(
     "log.c"
     "argparse.c"
     "accumulator.c"
+    "triplet_buffer.c"
 )

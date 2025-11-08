@@ -8,12 +8,16 @@
  * [options]
  *
  * Methods:
- *   nearest  - Nearest neighbor interpolation
- *   bilinear - Bilinear interpolation
+ *   nearest      - Nearest neighbor interpolation
+ *   bilinear     - Bilinear interpolation (sequential)
+ *   bilinear-omp - Bilinear interpolation (OpenMP parallel)
  *
  * Examples:
- *   # Scale to 100x100 using bilinear interpolation
+ *   # Scale to 100x100 using bilinear interpolation (sequential)
  *   scale_matrix -i input.mtx -o output.mtx -m bilinear -r 100 -c 100
+ *
+ *   # Scale to 100x100 using bilinear interpolation (OpenMP parallel)
+ *   scale_matrix -i input.mtx -o output.mtx -m bilinear-omp -r 100 -c 100
  *
  *   # Scale to 200x200 using nearest neighbor with averaging on collision
  *   scale_matrix -i input.mtx -o output.mtx -m nearest -r 200 -c 200
@@ -24,6 +28,7 @@
  */
 
 #include <matgen/algorithms/scaling/bilinear.h>
+#include <matgen/algorithms/scaling/bilinear_omp.h>
 #include <matgen/algorithms/scaling/nearest_neighbor.h>
 #include <matgen/core/conversion.h>
 #include <matgen/core/coo_matrix.h>
@@ -37,6 +42,10 @@
 #include <string.h>
 #include <time.h>
 
+#ifdef MATGEN_HAS_OPENMP
+#include <omp.h>
+#endif
+
 // =============================================================================
 // Configuration Structure
 // =============================================================================
@@ -44,10 +53,11 @@
 typedef struct {
   const char* input_file;
   const char* output_file;
-  const char* method;  // "nearest" or "bilinear"
+  const char* method;  // "nearest", "bilinear", or "bilinear-omp"
   matgen_index_t new_rows;
   matgen_index_t new_cols;
   matgen_collision_policy_t collision_policy;
+  int num_threads;  // For OpenMP methods (0 = auto)
   bool verbose;
   bool show_stats;
   bool quiet;
@@ -66,23 +76,43 @@ static void print_usage(const char* prog_name) {
   printf("Required arguments:\n");
   printf("  -i, --input <file>     Input matrix file (.mtx format)\n");
   printf("  -o, --output <file>    Output matrix file (.mtx format)\n");
-  printf("  -m, --method <method>  Scaling method: 'nearest' or 'bilinear'\n");
+  printf("  -m, --method <method>  Scaling method:\n");
+  printf("                           'nearest'      - Nearest neighbor\n");
+  printf("                           'bilinear'     - Bilinear (sequential)\n");
+#ifdef MATGEN_HAS_OPENMP
+  printf(
+      "                           'bilinear-omp' - Bilinear (OpenMP "
+      "parallel)\n");
+#endif
   printf("  -r, --rows <N>         Target number of rows\n");
   printf("  -c, --cols <N>         Target number of columns\n");
   printf("\n");
   printf("Optional arguments:\n");
   printf("  --collision <policy>   Collision policy for nearest neighbor:\n");
   printf("                         'sum' (default), 'avg', or 'max'\n");
+#ifdef MATGEN_HAS_OPENMP
+  printf("  -t, --threads <N>      Number of threads for OpenMP methods\n");
+  printf(
+      "                         (default: auto, uses all available cores)\n");
+#endif
   printf("  -v, --verbose          Enable verbose output\n");
   printf("  -s, --stats            Show detailed statistics\n");
   printf("  -q, --quiet            Suppress all non-error output\n");
   printf("  -h, --help             Show this help message\n");
   printf("\n");
   printf("Examples:\n");
-  printf("  # Scale to 100x100 using bilinear interpolation\n");
+  printf("  # Scale to 100x100 using bilinear interpolation (sequential)\n");
   printf("  %s -i input.mtx -o output.mtx -m bilinear -r 100 -c 100\n",
          prog_name);
   printf("\n");
+#ifdef MATGEN_HAS_OPENMP
+  printf(
+      "  # Scale to 100x100 using bilinear interpolation (parallel, 4 "
+      "threads)\n");
+  printf("  %s -i input.mtx -o output.mtx -m bilinear-omp -r 100 -c 100 -t 4\n",
+         prog_name);
+  printf("\n");
+#endif
   printf(
       "  # Scale to 200x200 using nearest neighbor with max collision "
       "policy\n");
@@ -105,6 +135,7 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
   config->new_rows = 0;
   config->new_cols = 0;
   config->collision_policy = MATGEN_COLLISION_SUM;
+  config->num_threads = 0;  // Auto
   config->verbose = false;
   config->show_stats = false;
   config->quiet = false;
@@ -144,6 +175,17 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
         return false;
       }
       config->new_cols = (matgen_index_t)atoll(argv[i]);
+    } else if (strcmp(argv[i], "-t") == 0 ||
+               strcmp(argv[i], "--threads") == 0) {
+      if (++i >= argc) {
+        fprintf(stderr, "Error: %s requires an argument\n", argv[i - 1]);
+        return false;
+      }
+      config->num_threads = atoi(argv[i]);
+      if (config->num_threads < 0) {
+        fprintf(stderr, "Error: Number of threads must be >= 0\n");
+        return false;
+      }
     } else if (strcmp(argv[i], "--collision") == 0) {
       if (++i >= argc) {
         fprintf(stderr, "Error: --collision requires an argument\n");
@@ -195,10 +237,24 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
   }
 
   // Validate method
-  if (strcmp(config->method, "nearest") != 0 &&
-      strcmp(config->method, "bilinear") != 0) {
-    fprintf(stderr, "Error: Method must be 'nearest' or 'bilinear', got '%s'\n",
-            config->method);
+  bool valid_method = false;
+  if (strcmp(config->method, "nearest") == 0 ||
+      strcmp(config->method, "bilinear") == 0) {
+    valid_method = true;
+  }
+#ifdef MATGEN_HAS_OPENMP
+  if (strcmp(config->method, "bilinear-omp") == 0) {
+    valid_method = true;
+  }
+#endif
+
+  if (!valid_method) {
+    fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
+    fprintf(stderr, "Valid methods: 'nearest', 'bilinear'");
+#ifdef MATGEN_HAS_OPENMP
+    fprintf(stderr, ", 'bilinear-omp'");
+#endif
+    fprintf(stderr, "\n");
     return false;
   }
 
@@ -313,6 +369,14 @@ int main(int argc, char** argv) {
     matgen_log_set_level(MATGEN_LOG_LEVEL_INFO);
   }
 
+  // Set OpenMP threads if specified
+#ifdef MATGEN_HAS_OPENMP
+  if (config.num_threads > 0) {
+    omp_set_num_threads(config.num_threads);
+  }
+  int actual_threads = omp_get_max_threads();
+#endif
+
   if (!config.quiet) {
     printf(
         "======================================================================"
@@ -331,6 +395,11 @@ int main(int argc, char** argv) {
       printf("Collision:       %s\n",
              collision_policy_name(config.collision_policy));
     }
+#ifdef MATGEN_HAS_OPENMP
+    if (strcmp(config.method, "bilinear-omp") == 0) {
+      printf("OpenMP threads:  %d\n", actual_threads);
+    }
+#endif
     printf(
         "======================================================================"
         "=======\n");
@@ -386,9 +455,20 @@ int main(int argc, char** argv) {
     err = matgen_scale_nearest_neighbor(input_csr, config.new_rows,
                                         config.new_cols,
                                         config.collision_policy, &output_csr);
-  } else {  // bilinear
+  } else if (strcmp(config.method, "bilinear") == 0) {
     err = matgen_scale_bilinear(input_csr, config.new_rows, config.new_cols,
                                 &output_csr);
+  }
+#ifdef MATGEN_HAS_OPENMP
+  else if (strcmp(config.method, "bilinear-omp") == 0) {
+    err = matgen_scale_bilinear_omp(input_csr, config.new_rows, config.new_cols,
+                                    &output_csr);
+  }
+#endif
+  else {
+    fprintf(stderr, "Error: Unknown method '%s'\n", config.method);
+    matgen_csr_destroy(input_csr);
+    return 1;
   }
 
   clock_t end = clock();

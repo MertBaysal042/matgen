@@ -89,6 +89,19 @@ matgen_error_t matgen_coo_add_entry(matgen_coo_matrix_t* matrix,
  */
 matgen_error_t matgen_coo_sort(matgen_coo_matrix_t* matrix);
 
+/**
+ * @brief Sum duplicate entries in a sorted COO matrix
+ *
+ * Assumes matrix is already sorted. Combines entries with identical (row, col)
+ * by summing their values. Modifies the matrix in-place, reducing nnz.
+ *
+ * @param matrix Matrix to process (must be sorted)
+ * @return MATGEN_SUCCESS on success, error code on failure
+ *
+ * @note Matrix must be sorted first using matgen_coo_sort()
+ */
+matgen_error_t matgen_coo_sum_duplicates(matgen_coo_matrix_t* matrix);
+
 // =============================================================================
 // Matrix Access
 // =============================================================================
