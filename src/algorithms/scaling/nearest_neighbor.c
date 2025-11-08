@@ -7,11 +7,8 @@
 #include "matgen/core/conversion.h"
 #include "matgen/core/coo_matrix.h"
 #include "matgen/core/types.h"
-#include "matgen/utils/accumulator.h"
 #include "matgen/utils/log.h"
-
-// Threshold for using stack vs heap allocation for weights
-#define MATGEN_NN_STACK_THRESHOLD 64
+#include "matgen/utils/triplet_buffer.h"
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 matgen_error_t matgen_scale_nearest_neighbor(
@@ -34,7 +31,8 @@ matgen_error_t matgen_scale_nearest_neighbor(
       (matgen_value_t)new_cols / (matgen_value_t)source->cols;
 
   MATGEN_LOG_DEBUG(
-      "Nearest neighbor scaling: %llu×%llu -> %llu×%llu (scale: %.3fx%.3f)",
+      "Nearest neighbor scaling (sequential): %llu×%llu -> %llu×%llu "
+      "(scale: %.3fx%.3f)",
       (unsigned long long)source->rows, (unsigned long long)source->cols,
       (unsigned long long)new_rows, (unsigned long long)new_cols, row_scale,
       col_scale);
@@ -45,10 +43,10 @@ matgen_error_t matgen_scale_nearest_neighbor(
 
   MATGEN_LOG_DEBUG("Estimated output NNZ: %zu", estimated_nnz);
 
-  matgen_accumulator_t* acc =
-      matgen_accumulator_create(estimated_nnz, collision_policy);
-  if (!acc) {
-    MATGEN_LOG_ERROR("Failed to create accumulator");
+  // Create triplet buffer
+  matgen_triplet_buffer_t* buffer = matgen_triplet_buffer_create(estimated_nnz);
+  if (!buffer) {
+    MATGEN_LOG_ERROR("Failed to create triplet buffer");
     return MATGEN_ERROR_OUT_OF_MEMORY;
   }
 
@@ -102,12 +100,11 @@ matgen_error_t matgen_scale_nearest_neighbor(
       // Fill entire block
       for (matgen_index_t dr = dst_row_start; dr < dst_row_end; dr++) {
         for (matgen_index_t dc = dst_col_start; dc < dst_col_end; dc++) {
-          err = matgen_accumulator_add(acc, dr, dc, cell_val);
+          err = matgen_triplet_buffer_add(buffer, dr, dc, cell_val);
           if (err != MATGEN_SUCCESS) {
-            MATGEN_LOG_ERROR(
-                "Failed to add entry to accumulator at (%llu, %llu)",
-                (unsigned long long)dr, (unsigned long long)dc);
-            matgen_accumulator_destroy(acc);
+            MATGEN_LOG_ERROR("Failed to add entry to buffer at (%llu, %llu)",
+                             (unsigned long long)dr, (unsigned long long)dc);
+            matgen_triplet_buffer_destroy(buffer);
             return err;
           }
         }
@@ -115,20 +112,51 @@ matgen_error_t matgen_scale_nearest_neighbor(
     }
   }
 
-  size_t final_size = matgen_accumulator_size(acc);
-  matgen_value_t load_factor = matgen_accumulator_load_factor(acc);
+  size_t total_triplets = matgen_triplet_buffer_size(buffer);
+  MATGEN_LOG_DEBUG("Generated %zu triplets", total_triplets);
 
-  MATGEN_LOG_DEBUG("Accumulated %zu entries (estimated %zu, load factor: %.2f)",
-                   final_size, estimated_nnz, load_factor);
-
-  matgen_coo_matrix_t* coo = matgen_accumulator_to_coo(acc, new_rows, new_cols);
-  matgen_accumulator_destroy(acc);
-
+  // Create COO matrix and transfer triplets
+  matgen_coo_matrix_t* coo =
+      matgen_coo_create(new_rows, new_cols, total_triplets);
   if (!coo) {
-    MATGEN_LOG_ERROR("Failed to convert accumulator to COO matrix");
+    MATGEN_LOG_ERROR("Failed to create COO matrix");
+    matgen_triplet_buffer_destroy(buffer);
     return MATGEN_ERROR_OUT_OF_MEMORY;
   }
 
+  // Copy triplets to COO matrix
+  memcpy(coo->row_indices, buffer->rows,
+         total_triplets * sizeof(matgen_index_t));
+  memcpy(coo->col_indices, buffer->cols,
+         total_triplets * sizeof(matgen_index_t));
+  memcpy(coo->values, buffer->vals, total_triplets * sizeof(matgen_value_t));
+  coo->nnz = total_triplets;
+
+  matgen_triplet_buffer_destroy(buffer);
+
+  // Sort and handle duplicates according to collision policy
+  MATGEN_LOG_DEBUG("Sorting and handling duplicates (policy: %d)...",
+                   collision_policy);
+  matgen_coo_sort(coo);
+
+  // Handle duplicates based on collision policy
+  if (collision_policy == MATGEN_COLLISION_SUM) {
+    // Sum duplicates
+    matgen_coo_sum_duplicates(coo);
+  } else if (collision_policy == MATGEN_COLLISION_AVG ||
+             collision_policy == MATGEN_COLLISION_MAX) {
+    // Need to implement these policies
+    err = matgen_coo_merge_duplicates(coo, collision_policy);
+    if (err != MATGEN_SUCCESS) {
+      MATGEN_LOG_ERROR("Failed to merge duplicates");
+      matgen_coo_destroy(coo);
+      return err;
+    }
+  }
+
+  MATGEN_LOG_DEBUG("After deduplication: %zu entries", coo->nnz);
+
+  // Convert to CSR
   *result = matgen_coo_to_csr(coo);
   matgen_coo_destroy(coo);
 
@@ -137,8 +165,9 @@ matgen_error_t matgen_scale_nearest_neighbor(
     return MATGEN_ERROR_OUT_OF_MEMORY;
   }
 
-  MATGEN_LOG_DEBUG("Nearest neighbor scaling completed: output NNZ = %zu",
-                   (*result)->nnz);
+  MATGEN_LOG_DEBUG(
+      "Nearest neighbor scaling (sequential) completed: output NNZ = %zu",
+      (*result)->nnz);
 
   return MATGEN_SUCCESS;
 }

@@ -467,6 +467,91 @@ matgen_error_t matgen_coo_sum_duplicates(matgen_coo_matrix_t* matrix) {
   return MATGEN_SUCCESS;
 }
 
+matgen_error_t matgen_coo_merge_duplicates(matgen_coo_matrix_t* matrix,
+                                           matgen_collision_policy_t policy) {
+  if (!matrix) {
+    MATGEN_LOG_ERROR("NULL matrix pointer");
+    return MATGEN_ERROR_INVALID_ARGUMENT;
+  }
+
+  if (matrix->nnz <= 1) {
+    // No duplicates possible
+    return MATGEN_SUCCESS;
+  }
+
+  if (!matrix->is_sorted) {
+    MATGEN_LOG_WARN(
+        "Matrix not sorted; merging duplicates requires sorted matrix");
+    // Sort it first
+    matgen_error_t err = matgen_coo_sort(matrix);
+    if (err != MATGEN_SUCCESS) {
+      return err;
+    }
+  }
+
+  MATGEN_LOG_DEBUG(
+      "Merging duplicates in COO matrix with %zu entries (policy: %d)",
+      matrix->nnz, policy);
+
+  // Scan through and combine duplicates
+  size_t write_pos = 0;  // Position to write unique entries
+
+  for (size_t read_pos = 0; read_pos < matrix->nnz; read_pos++) {
+    matgen_index_t current_row = matrix->row_indices[read_pos];
+    matgen_index_t current_col = matrix->col_indices[read_pos];
+    matgen_value_t current_val = matrix->values[read_pos];
+    size_t count = 1;
+
+    // Process all consecutive entries with same (row, col)
+    while (read_pos + 1 < matrix->nnz &&
+           matrix->row_indices[read_pos + 1] == current_row &&
+           matrix->col_indices[read_pos + 1] == current_col) {
+      read_pos++;
+      matgen_value_t next_val = matrix->values[read_pos];
+
+      switch (policy) {
+        case MATGEN_COLLISION_SUM:
+        case MATGEN_COLLISION_AVG:
+          current_val += next_val;
+          break;
+        case MATGEN_COLLISION_MAX:
+          if (next_val > current_val) {
+            current_val = next_val;
+          }
+          break;
+        case MATGEN_COLLISION_MIN:
+          if (next_val < current_val) {
+            current_val = next_val;
+          }
+          break;
+        case MATGEN_COLLISION_LAST:
+          current_val = next_val;
+          break;
+      }
+      count++;
+    }
+
+    // Apply averaging if needed
+    if (policy == MATGEN_COLLISION_AVG && count > 1) {
+      current_val /= (matgen_value_t)count;
+    }
+
+    // Write the combined entry
+    matrix->row_indices[write_pos] = current_row;
+    matrix->col_indices[write_pos] = current_col;
+    matrix->values[write_pos] = current_val;
+    write_pos++;
+  }
+
+  size_t original_nnz = matrix->nnz;
+  matrix->nnz = write_pos;
+
+  MATGEN_LOG_DEBUG("Reduced from %zu to %zu entries (%zu duplicates removed)",
+                   original_nnz, matrix->nnz, original_nnz - matrix->nnz);
+
+  return MATGEN_SUCCESS;
+}
+
 // =============================================================================
 // Matrix Access
 // =============================================================================

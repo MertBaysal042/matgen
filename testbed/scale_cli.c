@@ -92,8 +92,8 @@ static void print_usage(const char* prog_name) {
   printf("                         'sum' (default), 'avg', or 'max'\n");
 #ifdef MATGEN_HAS_OPENMP
   printf("  -t, --threads <N>      Number of threads for OpenMP methods\n");
-  printf(
-      "                         (default: auto, uses all available cores)\n");
+  printf("                         (0 or omit for auto-detection)\n");
+  printf("                         Can also set via OMP_NUM_THREADS env var\n");
 #endif
   printf("  -v, --verbose          Enable verbose output\n");
   printf("  -s, --stats            Show detailed statistics\n");
@@ -111,6 +111,12 @@ static void print_usage(const char* prog_name) {
       "threads)\n");
   printf("  %s -i input.mtx -o output.mtx -m bilinear-omp -r 100 -c 100 -t 4\n",
          prog_name);
+  printf("\n");
+  printf("  # Scale using environment variable for thread count\n");
+  printf(
+      "  OMP_NUM_THREADS=8 %s -i input.mtx -o output.mtx -m bilinear-omp -r "
+      "100 -c 100\n",
+      prog_name);
   printf("\n");
 #endif
   printf(
@@ -373,6 +379,9 @@ int main(int argc, char** argv) {
 #ifdef MATGEN_HAS_OPENMP
   if (config.num_threads > 0) {
     omp_set_num_threads(config.num_threads);
+    if (!config.quiet && config.verbose) {
+      printf("OpenMP threads set to: %d\n", config.num_threads);
+    }
   }
   int actual_threads = omp_get_max_threads();
 #endif
@@ -396,8 +405,20 @@ int main(int argc, char** argv) {
              collision_policy_name(config.collision_policy));
     }
 #ifdef MATGEN_HAS_OPENMP
-    if (strcmp(config.method, "bilinear-omp") == 0) {
-      printf("OpenMP threads:  %d\n", actual_threads);
+    // Show thread count for any OpenMP method
+    if (strstr(config.method, "-omp") != NULL) {
+      if (config.num_threads > 0) {
+        printf("OpenMP threads:  %d (requested: %d)\n", actual_threads,
+               config.num_threads);
+      } else {
+        printf("OpenMP threads:  %d (auto)\n", actual_threads);
+      }
+    }
+#else
+    // Warn if user tried to use OpenMP method without OpenMP support
+    if (strstr(config.method, "-omp") != NULL) {
+      fprintf(stderr,
+              "WARNING: OpenMP method requested but OpenMP not available\n");
     }
 #endif
     printf(

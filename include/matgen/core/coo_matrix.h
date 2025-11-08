@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 
+#include "matgen/algorithms/scaling/scaling_types.h"
 #include "matgen/core/types.h"
 
 #ifdef __cplusplus
@@ -101,6 +102,24 @@ matgen_error_t matgen_coo_sort(matgen_coo_matrix_t* matrix);
  * @note Matrix must be sorted first using matgen_coo_sort()
  */
 matgen_error_t matgen_coo_sum_duplicates(matgen_coo_matrix_t* matrix);
+
+/**
+ * @brief Merge duplicate entries in a sorted COO matrix using a collision
+ * policy
+ *
+ * Assumes matrix is already sorted. Combines entries with identical (row, col)
+ * according to the specified policy. Modifies the matrix in-place, reducing
+ * nnz.
+ *
+ * @param matrix Matrix to process (must be sorted)
+ * @param policy Collision policy (SUM, AVG, MAX)
+ * @return MATGEN_SUCCESS on success, error code on failure
+ *
+ * @note Matrix must be sorted first using matgen_coo_sort()
+ * @note For SUM policy, use matgen_coo_sum_duplicates() for better performance
+ */
+matgen_error_t matgen_coo_merge_duplicates(matgen_coo_matrix_t* matrix,
+                                           matgen_collision_policy_t policy);
 
 // =============================================================================
 // Matrix Access

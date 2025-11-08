@@ -42,11 +42,10 @@ matgen_error_t matgen_scale_bilinear_omp(const matgen_csr_matrix_t* source,
 
   int num_threads = omp_get_max_threads();
   MATGEN_LOG_DEBUG(
-      "Bilinear scaling (OpenMP, %d threads): %llu×%llu -> %llu×%llu "
+      "Bilinear scaling (OpenMP, %d threads): %zu×%zu -> %zu×%zu "
       "(scale: %.3fx%.3f)",
-      num_threads, (unsigned long long)source->rows,
-      (unsigned long long)source->cols, (unsigned long long)new_rows,
-      (unsigned long long)new_cols, row_scale, col_scale);
+      num_threads, source->rows, source->cols, new_rows, new_cols, row_scale,
+      col_scale);
 
   // Estimate output NNZ
   matgen_value_t avg_contributions_per_source =

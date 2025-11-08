@@ -26,11 +26,11 @@ extern "C" {
  * with automatic resizing. Optimized for append operations.
  */
 typedef struct {
-  matgen_index_t* rows; /**< Row indices */
-  matgen_index_t* cols; /**< Column indices */
-  matgen_value_t* vals; /**< Values */
-  size_t capacity;      /**< Current capacity */
-  size_t size;          /**< Number of entries */
+  matgen_index_t* rows;  // Row indices
+  matgen_index_t* cols;  // Column indices
+  matgen_value_t* vals;  // Values
+  size_t capacity;       // Current capacity
+  size_t size;           // Number of entries
 } matgen_triplet_buffer_t;
 
 // =============================================================================
