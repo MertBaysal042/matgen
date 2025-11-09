@@ -222,7 +222,9 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
   memcpy(coo->col_indices, buffer->cols,
          total_triplets * sizeof(matgen_index_t));
   memcpy(coo->values, buffer->vals, total_triplets * sizeof(matgen_value_t));
+
   coo->nnz = total_triplets;
+  coo->is_sorted = false;
 
   // Sort and sum duplicates
   MATGEN_LOG_DEBUG("Sorting and summing duplicates...");

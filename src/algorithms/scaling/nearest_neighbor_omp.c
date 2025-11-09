@@ -223,6 +223,7 @@ matgen_error_t matgen_scale_nearest_neighbor_omp(
   free((void*)thread_buffers);
 
   coo->nnz = total_triplets;
+  coo->is_sorted = false;
 
   // Sort and handle duplicates according to collision policy
   MATGEN_LOG_DEBUG("Sorting and handling duplicates (policy: %d)...",

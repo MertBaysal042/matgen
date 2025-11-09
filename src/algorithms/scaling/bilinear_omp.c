@@ -317,6 +317,7 @@ matgen_error_t matgen_scale_bilinear_omp(const matgen_csr_matrix_t* source,
   free((void*)thread_buffers);
 
   coo->nnz = total_triplets;
+  coo->is_sorted = false;
 
   // Sort and sum duplicates
   MATGEN_LOG_DEBUG("Sorting and summing duplicates...");

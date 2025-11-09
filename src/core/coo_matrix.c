@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "matgen/utils/log.h"
 
@@ -188,6 +189,11 @@ static void radix_sort_coo(matgen_coo_matrix_t* matrix) {
 
   matgen_size_t n = matrix->nnz;
 
+  // Keep references to original buffers
+  matgen_index_t* orig_rows = matrix->row_indices;
+  matgen_index_t* orig_cols = matrix->col_indices;
+  matgen_value_t* orig_vals = matrix->values;
+
   // Allocate temporary buffers
   matgen_index_t* temp_rows =
       (matgen_index_t*)malloc(n * sizeof(matgen_index_t));
@@ -213,6 +219,17 @@ static void radix_sort_coo(matgen_coo_matrix_t* matrix) {
     keys[i] = encode_key(matrix->row_indices[i], matrix->col_indices[i]);
   }
 
+  // Pointers for ping-pong between buffers
+  matgen_index_t* curr_rows = orig_rows;
+  matgen_index_t* curr_cols = orig_cols;
+  matgen_value_t* curr_vals = orig_vals;
+  uint64_t* curr_keys = keys;
+
+  matgen_index_t* next_rows = temp_rows;
+  matgen_index_t* next_cols = temp_cols;
+  matgen_value_t* next_vals = temp_vals;
+  uint64_t* next_keys = temp_keys;
+
   // Radix sort (process 8 bits at a time)
   matgen_size_t count[RADIX_BUCKETS];
 
@@ -224,7 +241,7 @@ static void radix_sort_coo(matgen_coo_matrix_t* matrix) {
 
     // Count occurrences
     for (matgen_size_t i = 0; i < n; i++) {
-      int bucket = (int)(keys[i] >> shift) & RADIX_MASK;
+      int bucket = (int)(curr_keys[i] >> shift) & RADIX_MASK;
       count[bucket]++;
     }
 
@@ -236,32 +253,45 @@ static void radix_sort_coo(matgen_coo_matrix_t* matrix) {
     // Distribute elements (backwards for stability)
     for (matgen_size_t i = n; i > 0; i--) {
       matgen_size_t idx = i - 1;
-      int bucket = (int)(keys[idx] >> shift) & RADIX_MASK;
+      int bucket = (int)(curr_keys[idx] >> shift) & RADIX_MASK;
       matgen_size_t dest = --count[bucket];
 
-      temp_keys[dest] = keys[idx];
-      temp_rows[dest] = matrix->row_indices[idx];
-      temp_cols[dest] = matrix->col_indices[idx];
-      temp_vals[dest] = matrix->values[idx];
+      next_keys[dest] = curr_keys[idx];
+      next_rows[dest] = curr_rows[idx];
+      next_cols[dest] = curr_cols[idx];
+      next_vals[dest] = curr_vals[idx];
     }
 
-    // Swap buffers
-    uint64_t* swap_keys = keys;
-    keys = temp_keys;
-    temp_keys = swap_keys;
+    // Swap curr and next pointers
+    matgen_index_t* swap_rows = curr_rows;
+    curr_rows = next_rows;
+    next_rows = swap_rows;
 
-    matgen_index_t* swap_rows = matrix->row_indices;
-    matrix->row_indices = temp_rows;
-    temp_rows = swap_rows;
+    matgen_index_t* swap_cols = curr_cols;
+    curr_cols = next_cols;
+    next_cols = swap_cols;
 
-    matgen_index_t* swap_cols = matrix->col_indices;
-    matrix->col_indices = temp_cols;
-    temp_cols = swap_cols;
+    matgen_value_t* swap_vals = curr_vals;
+    curr_vals = next_vals;
+    next_vals = swap_vals;
 
-    matgen_value_t* swap_vals = matrix->values;
-    matrix->values = temp_vals;
-    temp_vals = swap_vals;
+    uint64_t* swap_keys = curr_keys;
+    curr_keys = next_keys;
+    next_keys = swap_keys;
   }
+
+  // After 8 passes (64/8), curr_* points to the sorted data
+  // Copy back to original buffers if needed
+  if (curr_rows != orig_rows) {
+    memcpy(orig_rows, curr_rows, n * sizeof(matgen_index_t));
+    memcpy(orig_cols, curr_cols, n * sizeof(matgen_index_t));
+    memcpy(orig_vals, curr_vals, n * sizeof(matgen_value_t));
+  }
+
+  // Restore matrix pointers to originals
+  matrix->row_indices = orig_rows;
+  matrix->col_indices = orig_cols;
+  matrix->values = orig_vals;
 
   // Free temporary buffers
   free(temp_rows);
@@ -612,7 +642,7 @@ matgen_error_t matgen_coo_get(const matgen_coo_matrix_t* matrix,
 
   // Element not found - return 0.0
   if (value) {
-    *value = 0.0;
+    *value = (matgen_value_t)0.0;
   }
   return MATGEN_ERROR_INVALID_ARGUMENT;
 }

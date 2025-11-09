@@ -112,7 +112,7 @@ matgen_error_t matgen_csr_get(const matgen_csr_matrix_t* matrix,
   if (row_start == row_end) {
     // Empty row
     if (value) {
-      *value = 0.0;
+      *value = (matgen_value_t)0.0;
     }
 
     return MATGEN_ERROR_INVALID_ARGUMENT;
@@ -125,7 +125,7 @@ matgen_error_t matgen_csr_get(const matgen_csr_matrix_t* matrix,
   if (idx == (matgen_size_t)-1) {
     // Not found
     if (value) {
-      *value = 0.0;
+      *value = (matgen_value_t)0.0;
     }
 
     return MATGEN_ERROR_INVALID_ARGUMENT;

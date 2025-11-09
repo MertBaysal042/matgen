@@ -130,7 +130,9 @@ matgen_error_t matgen_scale_nearest_neighbor(
   memcpy(coo->col_indices, buffer->cols,
          total_triplets * sizeof(matgen_index_t));
   memcpy(coo->values, buffer->vals, total_triplets * sizeof(matgen_value_t));
+
   coo->nnz = total_triplets;
+  coo->is_sorted = false;
 
   matgen_triplet_buffer_destroy(buffer);
 
