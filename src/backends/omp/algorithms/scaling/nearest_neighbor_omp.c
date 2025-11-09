@@ -136,7 +136,7 @@ matgen_error_t matgen_scale_nearest_neighbor_omp(
     return err;
   }
 
-  MATGEN_LOG_DEBUG("Building CSR matrix from triplets...");
+  MATGEN_LOG_DEBUG("Building CSR matrix from...");
 
   // Finalize builder and get CSR matrix
   // The builder handles sorting, deduplication (summing), and CSR construction

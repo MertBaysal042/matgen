@@ -212,7 +212,7 @@ matgen_error_t matgen_scale_bilinear_omp(const matgen_csr_matrix_t* source,
     return err;
   }
 
-  MATGEN_LOG_DEBUG("Building CSR matrix from triplets...");
+  MATGEN_LOG_DEBUG("Building CSR matrix...");
 
   // Finalize builder and get CSR matrix
   // The builder handles sorting, deduplication (summing), and CSR construction
