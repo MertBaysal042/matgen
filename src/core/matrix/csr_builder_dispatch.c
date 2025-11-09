@@ -1,73 +1,12 @@
+#include "backends/seq/internal/csr_builder_seq.h"
 #include "core/matrix/csr_builder_internal.h"  // IWYU pragma: keep
 #include "matgen/core/execution/policy.h"
 #include "matgen/core/matrix/csr.h"
 #include "matgen/core/matrix/csr_builder.h"
 
-// Forward declarations for CSR matrix backend-specific functions
 #ifdef MATGEN_HAS_OPENMP
-extern matgen_csr_matrix_t* matgen_csr_create_omp(matgen_index_t rows,
-                                                  matgen_index_t cols,
-                                                  matgen_size_t nnz);
+#include "backends/omp/internal/csr_builder_omp.h"
 #endif
-
-extern matgen_csr_matrix_t* matgen_csr_create_seq(matgen_index_t rows,
-                                                  matgen_index_t cols,
-                                                  matgen_size_t nnz);
-
-// Forward declarations for CSR builder backend-specific functions
-#ifdef MATGEN_HAS_OPENMP
-extern matgen_csr_builder_t* matgen_csr_builder_create_omp(
-    matgen_index_t rows, matgen_index_t cols, matgen_size_t est_nnz);
-extern void matgen_csr_builder_destroy_omp(matgen_csr_builder_t* builder);
-extern matgen_error_t matgen_csr_builder_add_omp(matgen_csr_builder_t* builder,
-                                                 matgen_index_t row,
-                                                 matgen_index_t col,
-                                                 matgen_value_t value);
-extern matgen_csr_matrix_t* matgen_csr_builder_finalize_omp(
-    matgen_csr_builder_t* builder);
-extern matgen_size_t matgen_csr_builder_get_nnz_omp(
-    const matgen_csr_builder_t* builder);
-#endif
-
-extern matgen_csr_builder_t* matgen_csr_builder_create_seq(
-    matgen_index_t rows, matgen_index_t cols, matgen_size_t est_nnz);
-extern void matgen_csr_builder_destroy_seq(matgen_csr_builder_t* builder);
-extern matgen_error_t matgen_csr_builder_add_seq(matgen_csr_builder_t* builder,
-                                                 matgen_index_t row,
-                                                 matgen_index_t col,
-                                                 matgen_value_t value);
-extern matgen_csr_matrix_t* matgen_csr_builder_finalize_seq(
-    matgen_csr_builder_t* builder);
-extern matgen_size_t matgen_csr_builder_get_nnz_seq(
-    const matgen_csr_builder_t* builder);
-
-// =============================================================================
-// CSR Matrix Creation
-// =============================================================================
-
-matgen_csr_matrix_t* matgen_csr_create(matgen_index_t rows, matgen_index_t cols,
-                                       matgen_size_t nnz) {
-  // Default to best available backend
-  matgen_exec_policy_t policy = matgen_exec_resolve(MATGEN_EXEC_AUTO);
-  return matgen_csr_create_with_policy(rows, cols, nnz, policy);
-}
-
-matgen_csr_matrix_t* matgen_csr_create_with_policy(
-    matgen_index_t rows, matgen_index_t cols, matgen_size_t nnz,
-    matgen_exec_policy_t policy) {
-  matgen_exec_policy_t resolved = matgen_exec_resolve(policy);
-
-  switch (resolved) {
-#ifdef MATGEN_HAS_OPENMP
-    case MATGEN_EXEC_PAR:
-      return matgen_csr_create_omp(rows, cols, nnz);
-#endif
-
-    case MATGEN_EXEC_SEQ:
-    default:
-      return matgen_csr_create_seq(rows, cols, nnz);
-  }
-}
 
 // =============================================================================
 // CSR Builder Creation
