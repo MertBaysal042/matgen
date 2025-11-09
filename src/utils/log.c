@@ -10,6 +10,7 @@
 #define isatty _isatty
 #define fileno _fileno
 #else
+#include <sys/time.h>
 #include <unistd.h>
 #endif
 
@@ -237,9 +238,25 @@ static const char* level_color(matgen_log_level_t level) {
 }
 
 static void get_timestamp(char* buffer, size_t size) {
-  time_t now = time(NULL);
-  struct tm* tm_info = localtime(&now);
-  strftime(buffer, size, "%Y-%m-%d %H:%M:%S", tm_info);
+#ifdef _WIN32
+  // Windows implementation using GetLocalTime
+  SYSTEMTIME st;
+  GetLocalTime(&st);
+  snprintf(buffer, size, "%04d-%02d-%02d %02d:%02d:%02d.%03d", st.wYear,
+           st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
+           st.wMilliseconds);
+#else
+  // Unix/Linux implementation using gettimeofday
+  struct timeval tv;
+  struct tm* tm_info;
+
+  gettimeofday(&tv, NULL);
+  tm_info = localtime(&tv.tv_sec);
+
+  char time_str[24];
+  strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm_info);
+  snprintf(buffer, size, "%s.%03ld", time_str, tv.tv_usec / 1000);
+#endif
 }
 
 static const char* basename_only(const char* path) {
