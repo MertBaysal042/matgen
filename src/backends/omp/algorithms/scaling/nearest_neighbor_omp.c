@@ -84,39 +84,54 @@ matgen_error_t matgen_scale_nearest_neighbor_omp(
           continue;
         }
 
-        // Calculate target block boundaries
-        matgen_index_t dst_row_start =
-            (matgen_index_t)((matgen_value_t)src_row * row_scale);
-        matgen_index_t dst_row_end =
-            (matgen_index_t)((matgen_value_t)(src_row + 1) * row_scale);
-        matgen_index_t dst_col_start =
-            (matgen_index_t)((matgen_value_t)src_col * col_scale);
-        matgen_index_t dst_col_end =
-            (matgen_index_t)((matgen_value_t)(src_col + 1) * col_scale);
+        // For nearest neighbor, determine which destination cells map to this
+        // source cell A destination cell (dst_row, dst_col) maps to (src_row,
+        // src_col) when:
+        //   round(dst_row / row_scale) == src_row
+        //   round(dst_col / col_scale) == src_col
+        // This is true when:
+        //   src_row - 0.5 < dst_row / row_scale < src_row + 0.5
+        //   i.e., (src_row - 0.5) * row_scale < dst_row < (src_row + 0.5) *
+        //   row_scale
 
+        // Calculate the range of destination cells that map to this source cell
+        matgen_value_t dst_row_start_f =
+            (matgen_value_t)((matgen_value_t)src_row - 0.5) * row_scale;
+        matgen_value_t dst_row_end_f =
+            (matgen_value_t)((matgen_value_t)src_row + 0.5) * row_scale;
+        matgen_value_t dst_col_start_f =
+            (matgen_value_t)((matgen_value_t)src_col - 0.5) * col_scale;
+        matgen_value_t dst_col_end_f =
+            (matgen_value_t)((matgen_value_t)src_col + 0.5) * col_scale;
+
+        // Convert to integer ranges (using ceil for start to get first integer
+        // in range)
+        matgen_index_t dst_row_start = (matgen_index_t)ceil(dst_row_start_f);
+        matgen_index_t dst_row_end = (matgen_index_t)ceil(dst_row_end_f);
+        matgen_index_t dst_col_start = (matgen_index_t)ceil(dst_col_start_f);
+        matgen_index_t dst_col_end = (matgen_index_t)ceil(dst_col_end_f);
+
+        // Clamp to valid range
+        dst_row_start = MATGEN_CLAMP(dst_row_start, 0, new_rows);
         dst_row_end = MATGEN_CLAMP(dst_row_end, 0, new_rows);
+        dst_col_start = MATGEN_CLAMP(dst_col_start, 0, new_cols);
         dst_col_end = MATGEN_CLAMP(dst_col_end, 0, new_cols);
 
+        // Ensure at least one cell if this source cell should contribute
         if (dst_row_end <= dst_row_start) {
-          dst_row_end = dst_row_start + 1;
+          dst_row_end = MATGEN_CLAMP(dst_row_start + 1, 0, new_rows);
         }
-
         if (dst_col_end <= dst_col_start) {
-          dst_col_end = dst_col_start + 1;
+          dst_col_end = MATGEN_CLAMP(dst_col_start + 1, 0, new_cols);
         }
 
-        matgen_index_t block_rows = dst_row_end - dst_row_start;
-        matgen_index_t block_cols = dst_col_end - dst_col_start;
-        matgen_value_t block_size =
-            (matgen_value_t)block_rows * (matgen_value_t)block_cols;
-
-        matgen_value_t cell_val = src_val / block_size;
-
-        // Fill entire block
+        // For nearest neighbor, each destination cell gets the FULL source
+        // value (not divided - this is the key difference from block
+        // replication)
         for (matgen_index_t dr = dst_row_start; dr < dst_row_end; dr++) {
           for (matgen_index_t dc = dst_col_start; dc < dst_col_end; dc++) {
             matgen_error_t local_err =
-                matgen_csr_builder_add_omp(builder, dr, dc, cell_val);
+                matgen_csr_builder_add_omp(builder, dr, dc, src_val);
             if (local_err != MATGEN_SUCCESS) {
 #pragma omp atomic write
               err = local_err;

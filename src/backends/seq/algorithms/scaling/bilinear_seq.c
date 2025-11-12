@@ -11,10 +11,6 @@
 #include "matgen/utils/log.h"
 #include "matgen/utils/triplet_buffer.h"
 
-// Threshold for using stack vs heap allocation for weights
-// For blocks larger than this, we use heap allocation
-#define MATGEN_BILINEAR_STACK_THRESHOLD 64
-
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 matgen_error_t matgen_scale_bilinear_seq(const matgen_csr_matrix_t* source,
                                          matgen_index_t new_rows,
@@ -39,9 +35,10 @@ matgen_error_t matgen_scale_bilinear_seq(const matgen_csr_matrix_t* source,
       "Bilinear scaling (SEQ): %zu×%zu -> %zu×%zu (scale: %.3fx%.3f)",
       source->rows, source->cols, new_rows, new_cols, row_scale, col_scale);
 
-  // Estimate output NNZ
+  // For bilinear, each source entry contributes to a neighborhood
+  // Size depends on scale factor but is bounded
   matgen_value_t avg_contributions_per_source =
-      max((matgen_value_t)1.0, row_scale * col_scale);
+      (matgen_value_t)(row_scale + 1.0) * (matgen_value_t)(col_scale + 1.0);
   size_t estimated_nnz = (size_t)((matgen_value_t)source->nnz *
                                   avg_contributions_per_source * 1.2);
 
@@ -53,10 +50,6 @@ matgen_error_t matgen_scale_bilinear_seq(const matgen_csr_matrix_t* source,
     MATGEN_LOG_ERROR("Failed to create triplet buffer");
     return MATGEN_ERROR_OUT_OF_MEMORY;
   }
-
-  // Stack-allocated weight buffer for small blocks
-  matgen_value_t stack_weights[MATGEN_BILINEAR_STACK_THRESHOLD];
-  matgen_value_t* heap_weights = NULL;
 
   // Process each source entry
   matgen_error_t err = MATGEN_SUCCESS;
@@ -73,130 +66,99 @@ matgen_error_t matgen_scale_bilinear_seq(const matgen_csr_matrix_t* source,
         continue;
       }
 
-      // Calculate target block boundaries
-      matgen_index_t dst_row_start =
-          (matgen_index_t)((matgen_value_t)src_row * row_scale);
-      matgen_index_t dst_row_end =
-          (matgen_index_t)((matgen_value_t)(src_row + 1) * row_scale);
-      matgen_index_t dst_col_start =
-          (matgen_index_t)((matgen_value_t)src_col * col_scale);
-      matgen_index_t dst_col_end =
-          (matgen_index_t)((matgen_value_t)(src_col + 1) * col_scale);
+      // For bilinear interpolation, a source cell at (src_row, src_col)
+      // contributes to destination cells where it appears as one of the 4
+      // bilinear neighbors.
+      //
+      // A destination cell (dst_row, dst_col) uses bilinear interpolation from:
+      //   src_y = dst_row / row_scale (fractional)
+      //   src_x = dst_col / col_scale (fractional)
+      //   neighbors: floor(src_y), ceil(src_y), floor(src_x), ceil(src_x)
+      //
+      // So source (src_row, src_col) contributes when:
+      //   floor(dst_row / row_scale) == src_row OR ceil(dst_row / row_scale) ==
+      //   src_row floor(dst_col / col_scale) == src_col OR ceil(dst_col /
+      //   col_scale) == src_col
+
+      // Calculate destination range for rows
+      // floor(dst_row / row_scale) == src_row when: src_row * row_scale <=
+      // dst_row < (src_row+1) * row_scale ceil(dst_row / row_scale) == src_row
+      // when: (src_row-1) * row_scale < dst_row <= src_row * row_scale
+      // Combined: (src_row-1) * row_scale < dst_row < (src_row+1) * row_scale
+
+      matgen_value_t dst_row_start_f =
+          (matgen_value_t)((matgen_value_t)src_row - 1.0) * row_scale;
+      matgen_value_t dst_row_end_f =
+          (matgen_value_t)((matgen_value_t)src_row + 1.0) * row_scale;
+      matgen_value_t dst_col_start_f =
+          (matgen_value_t)((matgen_value_t)src_col - 1.0) * col_scale;
+      matgen_value_t dst_col_end_f =
+          (matgen_value_t)((matgen_value_t)src_col + 1.0) * col_scale;
+
+      // Convert to integer indices (ceil for exclusive start, ceil for
+      // exclusive end)
+      matgen_index_t dst_row_start = (matgen_index_t)ceil(dst_row_start_f);
+      matgen_index_t dst_row_end = (matgen_index_t)ceil(dst_row_end_f);
+      matgen_index_t dst_col_start = (matgen_index_t)ceil(dst_col_start_f);
+      matgen_index_t dst_col_end = (matgen_index_t)ceil(dst_col_end_f);
 
       // Clamp to valid range
+      dst_row_start = MATGEN_CLAMP(dst_row_start, 0, new_rows);
       dst_row_end = MATGEN_CLAMP(dst_row_end, 0, new_rows);
+      dst_col_start = MATGEN_CLAMP(dst_col_start, 0, new_cols);
       dst_col_end = MATGEN_CLAMP(dst_col_end, 0, new_cols);
 
-      // Ensure at least one cell per block
-      if (dst_row_end <= dst_row_start) {
-        dst_row_end = dst_row_start + 1;
-      }
-      if (dst_col_end <= dst_col_start) {
-        dst_col_end = dst_col_start + 1;
-      }
+      // For each destination cell in this neighborhood, calculate bilinear
+      // weight
+      for (matgen_index_t dst_row = dst_row_start; dst_row < dst_row_end;
+           dst_row++) {
+        for (matgen_index_t dst_col = dst_col_start; dst_col < dst_col_end;
+             dst_col++) {
+          // Map destination cell back to source coordinates (fractional)
+          matgen_value_t src_y = (matgen_value_t)dst_row / row_scale;
+          matgen_value_t src_x = (matgen_value_t)dst_col / col_scale;
 
-      matgen_index_t block_rows = dst_row_end - dst_row_start;
-      matgen_index_t block_cols = dst_col_end - dst_col_start;
-      matgen_size_t block_size =
-          (matgen_size_t)block_rows * (matgen_size_t)block_cols;
+          // Find the 4 bilinear neighbors
+          matgen_index_t y0 = (matgen_index_t)floor(src_y);
+          matgen_index_t y1 = (matgen_index_t)ceil(src_y);
+          matgen_index_t x0 = (matgen_index_t)floor(src_x);
+          matgen_index_t x1 = (matgen_index_t)ceil(src_x);
 
-      // For 1x1 blocks, just use the original value
-      if (block_size == 1) {
-        err = matgen_triplet_buffer_add(buffer, dst_row_start, dst_col_start,
-                                        src_val);
-        if (err != MATGEN_SUCCESS) {
-          MATGEN_LOG_ERROR("Failed to add entry to buffer");
-          goto cleanup;
-        }
-        continue;
-      }
+          // Calculate fractional parts for bilinear interpolation
+          matgen_value_t dy = src_y - (matgen_value_t)y0;
+          matgen_value_t dx = src_x - (matgen_value_t)x0;
 
-      // Allocate weight buffer based on block size
-      matgen_value_t* weights = NULL;
-      if (block_size <= MATGEN_BILINEAR_STACK_THRESHOLD) {
-        weights = stack_weights;
-      } else {
-        // Need heap allocation for large blocks
-        free(heap_weights);
-        heap_weights =
-            (matgen_value_t*)malloc(block_size * sizeof(matgen_value_t));
-        if (!heap_weights) {
-          MATGEN_LOG_ERROR(
-              "Failed to allocate weight buffer for block size %zu",
-              block_size);
-          err = MATGEN_ERROR_OUT_OF_MEMORY;
-          goto cleanup;
-        }
-        weights = heap_weights;
-      }
+          // Determine which of the 4 neighbors we are and calculate bilinear
+          // weight
+          matgen_value_t weight = (matgen_value_t)0.0;
 
-      // Calculate source cell center in target space
-      matgen_value_t src_center_row =
-          ((matgen_value_t)src_row + (matgen_value_t)0.5) * row_scale;
-      matgen_value_t src_center_col =
-          ((matgen_value_t)src_col + (matgen_value_t)0.5) * col_scale;
+          if (src_row == y0 && src_col == x0) {
+            // Bottom-left neighbor
+            weight = (matgen_value_t)(1.0 - dy) * (matgen_value_t)(1.0 - dx);
+          } else if (src_row == y0 && src_col == x1) {
+            // Bottom-right neighbor
+            weight = (matgen_value_t)(1.0 - dy) * dx;
+          } else if (src_row == y1 && src_col == x0) {
+            // Top-left neighbor
+            weight = dy * (matgen_value_t)(1.0 - dx);
+          } else if (src_row == y1 && src_col == x1) {
+            // Top-right neighbor
+            weight = dy * dx;
+          }
+          // If none of the above, weight remains 0 (shouldn't happen if range
+          // is correct)
 
-      // Pre-calculate normalization factors for bilinear weights
-      matgen_value_t row_norm_factor =
-          (matgen_value_t)block_rows / (matgen_value_t)2.0;
-      matgen_value_t col_norm_factor =
-          (matgen_value_t)block_cols / (matgen_value_t)2.0;
-
-      // Calculate and store all weights
-      matgen_value_t total_weight = (matgen_value_t)0.0;
-      size_t weight_idx = 0;
-
-      for (matgen_index_t dr = 0; dr < block_rows; dr++) {
-        matgen_index_t dst_row = dst_row_start + dr;
-        matgen_value_t dst_center_row =
-            (matgen_value_t)dst_row + (matgen_value_t)0.5;
-        matgen_value_t row_dist =
-            (matgen_value_t)fabs(dst_center_row - src_center_row);
-        matgen_value_t row_weight =
-            (matgen_value_t)1.0 - (row_dist / row_norm_factor);
-        row_weight =
-            MATGEN_CLAMP(row_weight, (matgen_value_t)0.0, (matgen_value_t)1.0);
-
-        for (matgen_index_t dc = 0; dc < block_cols; dc++) {
-          matgen_index_t dst_col = dst_col_start + dc;
-          matgen_value_t dst_center_col =
-              (matgen_value_t)dst_col + (matgen_value_t)0.5;
-          matgen_value_t col_dist =
-              (matgen_value_t)fabs(dst_center_col - src_center_col);
-          matgen_value_t col_weight =
-              (matgen_value_t)1.0 - (col_dist / col_norm_factor);
-          col_weight = MATGEN_CLAMP(col_weight, (matgen_value_t)0.0,
-                                    (matgen_value_t)1.0);
-
-          matgen_value_t weight = row_weight * col_weight;
-          weights[weight_idx++] = weight;
-          total_weight += weight;
-        }
-      }
-
-      // Pre-normalize weights
-      if (total_weight > (matgen_value_t)0.0) {
-        for (size_t i = 0; i < block_size; i++) {
-          weights[i] /= total_weight;
-        }
-      }
-
-      // Distribute using pre-normalized weights
-      weight_idx = 0;
-      for (matgen_index_t dr = 0; dr < block_rows; dr++) {
-        matgen_index_t dst_row = dst_row_start + dr;
-        for (matgen_index_t dc = 0; dc < block_cols; dc++) {
-          matgen_index_t dst_col = dst_col_start + dc;
-          matgen_value_t normalized_weight = weights[weight_idx++];
-
-          // Distribute (skip if effectively zero)
-          if (normalized_weight > (matgen_value_t)1e-12) {
-            matgen_value_t weighted_val = src_val * normalized_weight;
+          // Add weighted contribution if non-zero
+          if (weight > 1e-12) {
+            matgen_value_t contribution = src_val * weight;
             err = matgen_triplet_buffer_add(buffer, dst_row, dst_col,
-                                            weighted_val);
+                                            contribution);
             if (err != MATGEN_SUCCESS) {
-              MATGEN_LOG_ERROR("Failed to add entry to buffer");
-              goto cleanup;
+              MATGEN_LOG_ERROR("Failed to add entry to buffer at (%llu, %llu)",
+                               (unsigned long long)dst_row,
+                               (unsigned long long)dst_col);
+              matgen_triplet_buffer_destroy(buffer);
+              return err;
             }
           }
         }
@@ -212,8 +174,8 @@ matgen_error_t matgen_scale_bilinear_seq(const matgen_csr_matrix_t* source,
       matgen_coo_create(new_rows, new_cols, total_triplets);
   if (!coo) {
     MATGEN_LOG_ERROR("Failed to create COO matrix");
-    err = MATGEN_ERROR_OUT_OF_MEMORY;
-    goto cleanup;
+    matgen_triplet_buffer_destroy(buffer);
+    return MATGEN_ERROR_OUT_OF_MEMORY;
   }
 
   // Copy triplets to COO matrix
@@ -226,20 +188,22 @@ matgen_error_t matgen_scale_bilinear_seq(const matgen_csr_matrix_t* source,
   coo->nnz = total_triplets;
   coo->is_sorted = false;
 
+  matgen_triplet_buffer_destroy(buffer);
+
   // Sort and sum duplicates using sequential policy
   MATGEN_LOG_DEBUG("Sorting and summing duplicates...");
   err = matgen_coo_sort_with_policy(coo, MATGEN_EXEC_SEQ);
   if (err != MATGEN_SUCCESS) {
     MATGEN_LOG_ERROR("Failed to sort COO matrix");
     matgen_coo_destroy(coo);
-    goto cleanup;
+    return err;
   }
 
   err = matgen_coo_sum_duplicates_with_policy(coo, MATGEN_EXEC_SEQ);
   if (err != MATGEN_SUCCESS) {
     MATGEN_LOG_ERROR("Failed to sum duplicates");
     matgen_coo_destroy(coo);
-    goto cleanup;
+    return err;
   }
 
   MATGEN_LOG_DEBUG("After deduplication: %zu entries", coo->nnz);
@@ -250,16 +214,11 @@ matgen_error_t matgen_scale_bilinear_seq(const matgen_csr_matrix_t* source,
 
   if (!(*result)) {
     MATGEN_LOG_ERROR("Failed to convert COO to CSR matrix");
-    err = MATGEN_ERROR_OUT_OF_MEMORY;
-    goto cleanup;
+    return MATGEN_ERROR_OUT_OF_MEMORY;
   }
 
   MATGEN_LOG_DEBUG("Bilinear scaling (SEQ) completed: output NNZ = %zu",
                    (*result)->nnz);
 
-cleanup:
-  free(heap_weights);
-  matgen_triplet_buffer_destroy(buffer);
-
-  return err;
+  return MATGEN_SUCCESS;
 }
