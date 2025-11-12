@@ -81,22 +81,18 @@ matgen_error_t matgen_scale_bilinear_seq(const matgen_csr_matrix_t* source,
       //   col_scale) == src_col
 
       // Calculate destination range for rows
-      // floor(dst_row / row_scale) == src_row when: src_row * row_scale <=
-      // dst_row < (src_row+1) * row_scale ceil(dst_row / row_scale) == src_row
-      // when: (src_row-1) * row_scale < dst_row <= src_row * row_scale
-      // Combined: (src_row-1) * row_scale < dst_row < (src_row+1) * row_scale
-
-      matgen_value_t dst_row_start_f =
-          (matgen_value_t)((matgen_value_t)src_row - 1.0) * row_scale;
+      // Combined range: (src_row-1) * row_scale < dst_row < (src_row+1) *
+      // row_scale Use fmax to avoid negative values before casting to unsigned
+      matgen_value_t dst_row_start_f = (matgen_value_t)fmax(
+          0.0, ((matgen_value_t)src_row - 1.0) * row_scale);
       matgen_value_t dst_row_end_f =
           (matgen_value_t)((matgen_value_t)src_row + 1.0) * row_scale;
-      matgen_value_t dst_col_start_f =
-          (matgen_value_t)((matgen_value_t)src_col - 1.0) * col_scale;
+      matgen_value_t dst_col_start_f = (matgen_value_t)fmax(
+          0.0, ((matgen_value_t)src_col - 1.0) * col_scale);
       matgen_value_t dst_col_end_f =
           (matgen_value_t)((matgen_value_t)src_col + 1.0) * col_scale;
 
-      // Convert to integer indices (ceil for exclusive start, ceil for
-      // exclusive end)
+      // Convert to integer indices
       matgen_index_t dst_row_start = (matgen_index_t)ceil(dst_row_start_f);
       matgen_index_t dst_row_end = (matgen_index_t)ceil(dst_row_end_f);
       matgen_index_t dst_col_start = (matgen_index_t)ceil(dst_col_start_f);
@@ -124,9 +120,19 @@ matgen_error_t matgen_scale_bilinear_seq(const matgen_csr_matrix_t* source,
           matgen_index_t x0 = (matgen_index_t)floor(src_x);
           matgen_index_t x1 = (matgen_index_t)ceil(src_x);
 
+          // Clamp neighbors to valid source bounds
+          y0 = MATGEN_CLAMP(y0, 0, source->rows - 1);
+          y1 = MATGEN_CLAMP(y1, 0, source->rows - 1);
+          x0 = MATGEN_CLAMP(x0, 0, source->cols - 1);
+          x1 = MATGEN_CLAMP(x1, 0, source->cols - 1);
+
           // Calculate fractional parts for bilinear interpolation
           matgen_value_t dy = src_y - (matgen_value_t)y0;
           matgen_value_t dx = src_x - (matgen_value_t)x0;
+
+          // Clamp fractional parts to [0, 1]
+          dy = MATGEN_CLAMP(dy, 0.0, 1.0);
+          dx = MATGEN_CLAMP(dx, 0.0, 1.0);
 
           // Determine which of the 4 neighbors we are and calculate bilinear
           // weight
@@ -145,8 +151,7 @@ matgen_error_t matgen_scale_bilinear_seq(const matgen_csr_matrix_t* source,
             // Top-right neighbor
             weight = dy * dx;
           }
-          // If none of the above, weight remains 0 (shouldn't happen if range
-          // is correct)
+          // If none of the above, weight remains 0
 
           // Add weighted contribution if non-zero
           if (weight > 1e-12) {
