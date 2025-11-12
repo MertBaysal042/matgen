@@ -54,6 +54,11 @@ matgen_csr_builder_t* matgen_csr_builder_create_omp(matgen_index_t rows,
 
     tb->row_start = tid * rows_per_thread;
     tb->row_end = (tid + 1) * rows_per_thread;
+
+    // Clamp both row_start and row_end to valid range
+    if (tb->row_start > rows) {
+      tb->row_start = rows;
+    }
     if (tb->row_end > rows) {
       tb->row_end = rows;
     }
