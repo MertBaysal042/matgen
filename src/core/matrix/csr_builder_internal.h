@@ -91,6 +91,15 @@ struct matgen_csr_builder {
       csr_thread_builder_t* thread_builders;  // Array of thread-local builders
       omp_lock_t* row_locks;  // Per-row locks to prevent race conditions
     } omp;
+
+    // CUDA backend
+    struct {
+      matgen_index_t* host_rows;  // Host copy of row pointers
+      matgen_index_t* host_cols;  // Host copy of column indices
+      matgen_value_t* host_vals;  // Host copy of values
+      matgen_size_t capacity;     // Allocated capacity for device arrays
+      matgen_size_t nnz_count;    // Current number of non-zero entries
+    } cuda;
   } backend;
 };
 
