@@ -14,6 +14,10 @@
 #include "backends/cuda/internal/coo_cuda.h"
 #endif
 
+#ifdef MATGEN_HAS_MPI
+#include "backends/mpi/internal/coo_mpi.h"
+#endif
+
 // =============================================================================
 // Creation and Destruction
 // =============================================================================
@@ -36,6 +40,11 @@ matgen_coo_matrix_t* matgen_coo_create(matgen_index_t rows, matgen_index_t cols,
 #ifdef MATGEN_HAS_CUDA
   MATGEN_DISPATCH_CASE_PAR_UNSEQ:
     return matgen_coo_create_cuda(rows, cols, nnz_hint);
+#endif
+
+#ifdef MATGEN_HAS_MPI
+  MATGEN_DISPATCH_CASE_MPI:
+    return matgen_coo_create_mpi(rows, cols, nnz_hint);
 #endif
 
   MATGEN_DISPATCH_DEFAULT:

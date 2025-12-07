@@ -13,6 +13,10 @@
 #include "backends/cuda/internal/csr_cuda.h"
 #endif
 
+#ifdef MATGEN_HAS_MPI
+#include "backends/mpi/internal/csr_mpi.h"
+#endif
+
 // =============================================================================
 // Creation and Destruction (Dispatched)
 // =============================================================================
@@ -35,6 +39,11 @@ matgen_csr_matrix_t* matgen_csr_create_with_policy(
 #ifdef MATGEN_HAS_CUDA
   MATGEN_DISPATCH_CASE_PAR_UNSEQ:
     return matgen_csr_create_cuda(rows, cols, nnz);
+#endif
+
+#ifdef MATGEN_HAS_MPI
+  MATGEN_DISPATCH_CASE_MPI:
+    return matgen_csr_create_mpi(rows, cols, nnz);
 #endif
 
   MATGEN_DISPATCH_DEFAULT:

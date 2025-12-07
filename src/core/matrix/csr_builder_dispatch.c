@@ -12,6 +12,10 @@
 #include "backends/cuda/internal/csr_builder_cuda.h"
 #endif
 
+#ifdef MATGEN_HAS_MPI
+#include "backends/mpi/internal/csr_builder_mpi.h"
+#endif
+
 // =============================================================================
 // CSR Builder Creation
 // =============================================================================
@@ -40,6 +44,11 @@ matgen_csr_builder_t* matgen_csr_builder_create_with_policy(
       return matgen_csr_builder_create_cuda(rows, cols, est_nnz);
 #endif
 
+#ifdef MATGEN_HAS_MPI
+    case MATGEN_EXEC_MPI:
+      return matgen_csr_builder_create_mpi(rows, cols, est_nnz);
+#endif
+
     case MATGEN_EXEC_SEQ:
     default:
       return matgen_csr_builder_create_seq(rows, cols, est_nnz);
@@ -63,6 +72,11 @@ void matgen_csr_builder_destroy(matgen_csr_builder_t* builder) {
     case MATGEN_EXEC_PAR_UNSEQ:
       matgen_csr_builder_destroy_cuda(builder);
       break;
+#endif
+
+#ifdef MATGEN_HAS_MPI
+    case MATGEN_EXEC_MPI:
+      return matgen_csr_builder_destroy_mpi(builder);
 #endif
 
     case MATGEN_EXEC_SEQ:
@@ -93,7 +107,12 @@ matgen_error_t matgen_csr_builder_add(matgen_csr_builder_t* builder,
 #ifdef MATGEN_HAS_CUDA
     case MATGEN_EXEC_PAR_UNSEQ:
       return matgen_csr_builder_add_cuda(builder, row, col, value);
-      #endif
+#endif
+
+#ifdef MATGEN_HAS_MPI
+    case MATGEN_EXEC_MPI:
+      return matgen_csr_builder_add_mpi(builder, row, col, value);
+#endif
 
     case MATGEN_EXEC_SEQ:
     default:
@@ -144,14 +163,19 @@ matgen_csr_matrix_t* matgen_csr_builder_finalize(
 
   switch (builder->policy) {
 #ifdef MATGEN_HAS_OPENMP
-    case MATGEN_EXEC_PAR: 
+    case MATGEN_EXEC_PAR:
       return matgen_csr_builder_finalize_omp(builder);
 #endif
 
 #ifdef MATGEN_HAS_CUDA
-case MATGEN_EXEC_PAR_UNSEQ:
-    return matgen_csr_builder_finalize_cuda(builder);
-    #endif
+    case MATGEN_EXEC_PAR_UNSEQ:
+      return matgen_csr_builder_finalize_cuda(builder);
+#endif
+
+#ifdef MATGEN_HAS_MPI
+    case MATGEN_EXEC_MPI:
+      return matgen_csr_builder_finalize_mpi(builder);
+#endif
 
     case MATGEN_EXEC_SEQ:
     default:
@@ -175,9 +199,14 @@ matgen_size_t matgen_csr_builder_get_nnz(const matgen_csr_builder_t* builder) {
 #endif
 
 #ifdef MATGEN_HAS_CUDA
-case MATGEN_EXEC_PAR_UNSEQ:
-    return matgen_csr_builder_get_nnz_cuda(builder);
-    #endif
+    case MATGEN_EXEC_PAR_UNSEQ:
+      return matgen_csr_builder_get_nnz_cuda(builder);
+#endif
+
+#ifdef MATGEN_HAS_MPI
+    case MATGEN_EXEC_MPI:
+      return matgen_csr_builder_get_nnz_mpi(builder);
+#endif
 
     case MATGEN_EXEC_SEQ:
     default:

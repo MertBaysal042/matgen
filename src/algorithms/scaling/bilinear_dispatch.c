@@ -14,6 +14,10 @@
 #include "backends/cuda/internal/bilinear_cuda.h"
 #endif
 
+#ifdef MATGEN_HAS_MPI
+#include "backends/mpi/internal/bilinear_mpi.h"
+#endif
+
 matgen_error_t matgen_scale_bilinear_with_policy(
     matgen_exec_policy_t policy, const matgen_csr_matrix_t* source,
     matgen_index_t new_rows, matgen_index_t new_cols,
@@ -49,6 +53,11 @@ matgen_error_t matgen_scale_bilinear_with_policy(
     return matgen_scale_bilinear_cuda(source, new_rows, new_cols, result);
 #endif
 
+#ifdef MATGEN_HAS_MPI
+  MATGEN_DISPATCH_CASE_MPI:
+    return matgen_scale_bilinear_mpi(source, new_rows, new_cols, result);
+#endif
+
   MATGEN_DISPATCH_DEFAULT:
     // Fallback to sequential
     return matgen_scale_bilinear_seq(source, new_rows, new_cols, result);
@@ -71,15 +80,6 @@ matgen_error_t matgen_scale_bilinear_with_policy_detailed(
   matgen_dispatch_context_t ctx =
       matgen_dispatch_create_from_union(policy_union);
 
-  // For now, detailed parameters (thread count, CUDA device) are extracted
-  // but not used by the backend implementations. The backends use their own
-  // defaults. In a future enhancement, these parameters could be passed
-  // through.
-
-  // TODO: Pass ctx.num_threads to OpenMP version
-  // TODO: Pass ctx.cuda_device_id and ctx.cuda_block_size to CUDA version
-  // TODO: Pass ctx.mpi_comm to MPI version
-
   // Dispatch to appropriate backend
   MATGEN_DISPATCH_BEGIN(ctx, "bilinear_scale") {
   MATGEN_DISPATCH_CASE_SEQ:
@@ -94,6 +94,11 @@ matgen_error_t matgen_scale_bilinear_with_policy_detailed(
 #ifdef MATGEN_HAS_CUDA
   MATGEN_DISPATCH_CASE_PAR_UNSEQ:
     return matgen_scale_bilinear_cuda(source, new_rows, new_cols, result);
+#endif
+
+#ifdef MATGEN_HAS_MPI
+  MATGEN_DISPATCH_CASE_MPI:
+    return matgen_scale_bilinear_mpi(source, new_rows, new_cols, result);
 #endif
 
   MATGEN_DISPATCH_DEFAULT:

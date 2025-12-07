@@ -14,6 +14,10 @@
 #include "backends/cuda/internal/nearest_neighbor_cuda.h"
 #endif
 
+#ifdef MATGEN_HAS_MPI
+#include "backends/mpi/internal/nearest_neighbor_mpi.h"
+#endif
+
 matgen_error_t matgen_scale_nearest_neighbor_with_policy(
     matgen_exec_policy_t policy, const matgen_csr_matrix_t* source,
     matgen_index_t new_rows, matgen_index_t new_cols,
@@ -59,6 +63,12 @@ matgen_error_t matgen_scale_nearest_neighbor_with_policy_detailed(
   MATGEN_DISPATCH_CASE_PAR_UNSEQ:
     return matgen_scale_nearest_neighbor_cuda(source, new_rows, new_cols,
                                               collision_policy, result);
+#endif
+
+#ifdef MATGEN_HAS_MPI
+  MATGEN_DISPATCH_CASE_MPI:
+    return matgen_scale_nearest_neighbor_mpi(source, new_rows, new_cols,
+                                             collision_policy, result);
 #endif
 
   MATGEN_DISPATCH_DEFAULT:
