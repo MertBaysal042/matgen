@@ -75,11 +75,29 @@ matgen_error_t matgen_scale_bilinear_mpi(const matgen_csr_matrix_t* source,
       col_scale);
 
   // Step 1: Generate local triplets from source rows
+  // FIXED: More accurate estimation
+  // Each source entry at (src_row, src_col) contributes to destination cells in
+  // range:
+  // - Row range: [(src_row - 1) * row_scale, (src_row + 1) * row_scale]
+  // - Col range: [(src_col - 1) * col_scale, (src_col + 1) * col_scale]
+  matgen_value_t max_row_contrib = ceilf((2.0F * row_scale) + 2.0F);
+  matgen_value_t max_col_contrib = ceilf((2.0F * col_scale) + 2.0F);
   matgen_value_t max_contributions_per_source =
-      ceilf(row_scale + 1.0F) * ceilf(col_scale + 1.0F);
+      max_row_contrib * max_col_contrib;
+
+  // Use 1.5x safety factor for edge cases and rounding
   size_t estimated_local_triplets =
       (size_t)((matgen_value_t)source->nnz * max_contributions_per_source *
-               2.0);
+               1.5F);
+
+  // Ensure minimum buffer size
+  if (estimated_local_triplets < source->nnz * 4) {
+    estimated_local_triplets = source->nnz * 4;
+  }
+
+  MATGEN_LOG_DEBUG(
+      "[Rank %d] Estimated local triplets: %zu (max contributions: %.1f)", rank,
+      estimated_local_triplets, max_contributions_per_source);
 
   triplet_t* local_triplets =
       (triplet_t*)malloc(estimated_local_triplets * sizeof(triplet_t));

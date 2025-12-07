@@ -190,26 +190,34 @@ matgen_error_t matgen_scale_bilinear_cuda(const matgen_csr_matrix_t* source,
       (unsigned long long)new_rows, (unsigned long long)new_cols, row_scale,
       col_scale);
 
-  // FIXED: More accurate estimation
-  // Each source entry contributes to a neighborhood of at most:
-  // - ceil(row_scale + 1) rows
-  // - ceil(col_scale + 1) cols
-  // But bilinear weights mean many contributions, so use higher safety factor
-  matgen_value_t max_contributions_per_source =
-      ceilf(row_scale + 1.0f) * ceilf(col_scale + 1.0f);
+  // Replace lines 195-210 with:
 
-  // Use 2.0x safety factor to account for edge effects and overlaps
+  // Each source entry at (src_row, src_col) contributes to destination cells in
+  // range:
+  // - Row range: [(src_row - 1) * row_scale, (src_row + 1) * row_scale]
+  // - Col range: [(src_col - 1) * col_scale, (src_col + 1) * col_scale]
+  // The size of this range is approximately:
+  // - Rows: 2 * row_scale (from -1 to +1 around src_row)
+  // - Cols: 2 * col_scale (from -1 to +1 around src_col)
+  matgen_value_t max_row_contrib = ceilf(2.0f * row_scale + 2.0f);
+  matgen_value_t max_col_contrib = ceilf(2.0f * col_scale + 2.0f);
+  matgen_value_t max_contributions_per_source =
+      max_row_contrib * max_col_contrib;
+
+  // Use 1.5x safety factor for edge cases and rounding
   size_t estimated_nnz = (size_t)((matgen_value_t)source->nnz *
-                                  max_contributions_per_source * 2.0);
+                                  max_contributions_per_source * 1.5);
 
   // Ensure minimum buffer size
-  if (estimated_nnz < source->nnz) {
-    estimated_nnz = source->nnz * 2;
+  if (estimated_nnz < source->nnz * 4) {
+    estimated_nnz = source->nnz * 4;
   }
 
   MATGEN_LOG_DEBUG(
-      "Estimated output NNZ: %zu (max contributions per entry: %.1f)",
-      estimated_nnz, max_contributions_per_source);
+      "Estimated output NNZ: %zu (max contributions per entry: %.1f, "
+      "row_contrib: %.1f, col_contrib: %.1f)",
+      estimated_nnz, max_contributions_per_source, max_row_contrib,
+      max_col_contrib);
 
   // Allocate device memory for source CSR
   matgen_size_t* d_src_row_ptr = nullptr;
