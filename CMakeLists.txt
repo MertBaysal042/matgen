@@ -15,8 +15,6 @@ project(
 option(MATGEN_ENABLE_OPENMP "Enable OpenMP support for shared-memory parallelization" ON)
 option(MATGEN_ENABLE_MPI "Enable MPI support for distributed-memory parallelization" ON)
 option(MATGEN_ENABLE_CUDA "Enable CUDA support for GPU acceleration" ON)
-option(MATGEN_BUILD_TESTS "Build unit tests" ON)
-option(MATGEN_BUILD_BENCHMARKS "Build performance benchmarks" OFF)
 
 # =============================================================================
 # C/C++ Standards
@@ -150,17 +148,7 @@ endif()
 # Add Subdirectories
 # =============================================================================
 add_subdirectory("src")
-add_subdirectory("third_party")
 add_subdirectory("testbed")
-
-if(MATGEN_BUILD_TESTS)
-  enable_testing()
-  add_subdirectory("tests")
-endif()
-
-if(MATGEN_BUILD_BENCHMARKS)
-  add_subdirectory("benchmarks")
-endif()
 
 # =============================================================================
 # Configuration Summary
@@ -188,10 +176,3 @@ if(ENABLE_CUDA)
   message(STATUS "    Version:      ${CUDAToolkit_VERSION}")
   message(STATUS "    Arch:         ${CMAKE_CUDA_ARCHITECTURES}")
 endif()
-message(STATUS "")
-message(STATUS "Optional Features:")
-message(STATUS "  Build Tests:    ${BUILD_TESTS}")
-message(STATUS "  Build Benchmarks: ${BUILD_BENCHMARKS}")
-message(STATUS "  Build Examples: ${BUILD_EXAMPLES}")
-message(STATUS "========================================")
-message(STATUS "")
