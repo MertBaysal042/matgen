@@ -42,10 +42,13 @@
 // Thrust helpers: key type, equality comparator, and reducers
 // =============================================================================
 
+namespace matgen {
 using key_t = thrust::tuple<matgen_index_t, matgen_index_t>;
+}
 
 struct key_equal {
-  __host__ __device__ bool operator()(const key_t& a, const key_t& b) const {
+  __host__ __device__ bool operator()(const matgen::key_t& a,
+                                      const matgen::key_t& b) const {
     return thrust::get<0>(a) == thrust::get<0>(b) &&
            thrust::get<1>(a) == thrust::get<1>(b);
   }
