@@ -1,144 +1,128 @@
-# MatGen - Parallel Sparse Matrix Scaling and Value Estimation
+# MatGen: High-Performance Parallel Sparse Matrix Generation
 
-A high-performance C library for generating sparse matrices through parallel scaling algorithms (Nearest Neighbor and Bilinear Interpolation) with realistic value estimation. Implements OpenMP, MPI, and CUDA backends for scalability.
+**MatGen** is a production-ready C library designed for generating and scaling massive sparse matrices. It employs advanced parallel algorithms including **Nearest Neighbor** and **Bilinear Interpolation** to preserve structural and value integrity during scaling operations.
 
-## Features
+Architected for modern hardware, MatGen seamlessly dispatches computations across **CPUs (OpenMP)**, **GPUs (CUDA)**, and **Distributed Clusters (MPI)**, making it an ideal tool for HPC benchmarking and large-scale system testing.
 
-- **Multiple Scaling Algorithms**
+---
 
-  - Nearest Neighbor (value preservation)
-  - Bilinear Interpolation (smooth value distribution)
+## 🚀 Key Features
 
-- **Multi-Backend Support**
+- **Advanced Scaling Algorithms**:
+  - **Nearest Neighbor**: Preserves original values, ideal for discrete state matrices.
+  - **Bilinear Interpolation**: Smooths values, perfect for physical simulations.
+- **Multi-Backend Architecture**:
+  - **Sequential**: Optimized baseline for verification and small data.
+  - **OpenMP**: Shared-memory parallelism for multi-core workstations.
+  - **CUDA**: GPU acceleration for massive throughput.
+  - **MPI**: Distributed scaling for datasets exceeding single-node memory.
+- **Flexible I/O**:
+  - Full **Matrix Market (.mtx)** support.
+  - Efficient **CSR** (Compressed Sparse Row) and **COO** (Coordinate) internal formats.
+- **Production Quality**:
+  - Type-safe execution policies.
+  - Comprehensive error handling.
+  - Modular, extensible design.
 
-  - Sequential (baseline)
-  - OpenMP (shared-memory parallelism)
-  - MPI (distributed-memory parallelism)
-  - CUDA (GPU acceleration)
+---
 
-- **Sparse Matrix Formats**
-  - CSR (Compressed Sparse Row)
-  - COO (Coordinate format)
-  - Matrix Market (.mtx) I/O
-
-## Build Requirements
-
-### Required
-
-- **CMake** 3.28 or later
-- **C Compiler** with C17 support (MSVC 2019+, GCC 9+, Clang 10+)
-- **C++ Compiler** with C++20 support (for tests)
-- **Ninja** build system (recommended)
-
-### Optional (Backend-Specific)
-
-- **OpenMP** - For shared-memory parallelization (enabled by default)
-
-  - LLVM OpenMP runtime on Windows (libomp)
-  - Built-in on GCC/Clang Linux
-
-- **MPI** - For distributed-memory parallelization (enabled by default)
-
-  - Microsoft MPI (Windows): [Download](https://www.microsoft.com/en-us/download/details.aspx?id=105289)
-  - OpenMPI (Linux): `sudo apt install libopenmpi-dev`
-  - MPICH (Linux): `sudo apt install libmpich-dev`
-
-- **CUDA Toolkit** 11.0+ - For GPU acceleration (enabled by default)
-  - [NVIDIA CUDA Toolkit](https://developer.nvidia.com/cuda-downloads)
-  - Requires NVIDIA GPU with Compute Capability 6.0+
-
-### Testing (Optional)
-
-- **Google Test** (bundled as submodule)
-
-## Building on Windows
+## 🛠️ Quick Start
 
 ### Prerequisites
 
-1. **Install Visual Studio 2022** with:
+- **CMake** 3.28+
+- **C Compiler** (GCC 9+, Clang 10+, MSVC 2019+)
+- **Ninja** (Recommended)
 
-- Desktop Development with C++
-- MSVC v143 compiler
-- Windows SDK
-- CMake tools for Windows
+### Build & Install
 
-2. **Install CUDA Toolkit** (optional but recommended)
-
-- Download from [NVIDIA Developer](https://developer.nvidia.com/cuda-downloads)
-- Add CUDA to PATH during installation
-
-3. **Install Microsoft MPI** (optional)
-
-```powershell
-# Download and install both:
-# - msmpisetup.exe (runtime)
-# - msmpisdk.msi (SDK)
-```
-
-4. **Install Ninja** (recommended)
-
-```powershell
-# Using Chocolatey
-choco install ninja
-
-# Or download from https://github.com/ninja-build/ninja/releases
-```
-
-## Build Steps
-
-### **Option 1:** Using CMake Presets (Recommended)
-
-```powershell
-# Clone repository
+```bash
+# Clone the repository
 git clone https://github.com/erenalyoruk/matgen.git
 cd matgen
 
-# Configure with MSVC
-cmake --preset windows-msvc-release
+# Configure and Build
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 
-# Build
-cmake --build out/build/windows-msvc-release
-
-# Run tests (optional)
-ctest --preset windows-msvc-release
+# Or with presets (preferred)
+#
+# Current presets are:
+# - windows-msvc-debug
+# - windows-msvc-release
+# - windows-clang-debug
+# - windows-clang-release
+# - linux-gcc-debug
+# - linux-gcc-release
+cmake --preset {preset-name}
+cmake --build --preset {build-preset-name}
 ```
 
-### **Option 2:** Manual Configuration
+### CLI Usage (`scale_cli`)
 
-```powershell
-# Open "x64 Native Tools Command Prompt for VS 2022"
-mkdir build && cd build
+MatGen comes with a powerful CLI tool for immediate matrix scaling.
 
-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
-ninja
-ctest
+```bash
+# Scale input.mtx to 10k x 10k using Bilinear interpolation on GPU
+./build/testbed/scale_cli -i input.mtx -o output.mtx \
+                          -m bilinear \
+                          -r 10000 -c 10000 \
+                          -p par-unseq
 ```
 
-## Usage
+---
+
+## 📘 Documentation
+
+- [**Integration Guide**](INTEGRATION.md): Detailed guide for developers on adding new algorithms and backends.
+
+### C Library Usage
 
 ```c
 #include "matgen/algorithms/scaling.h"
 #include "matgen/io/mtx_reader.h"
-#include "matgen/io/mtx_writer.h"
-#include "matgen/core/execution/policy.h"
 
-// Read source matrix
-matgen_csr_matrix_t* source = NULL;
-matgen_mtx_read("input.mtx", &source, MATGEN_EXEC_AUTO);
+// 1. Read Input
+matgen_csr_matrix_t* source;
+matgen_mtx_read("data/graph.mtx", &source, MATGEN_EXEC_AUTO);
 
-// Scale 4x with nearest neighbor (CUDA if available)
-matgen_csr_matrix_t* scaled = NULL;
-matgen_scale_nearest_neighbor(source,
-                               source->rows * 4,
-                               source->cols * 4,
-                               MATGEN_COLLISION_SUM,
-                               MATGEN_EXEC_AUTO,
-                               &scaled);
+// 2. Scale with Automatic Backend Selection
+matgen_csr_matrix_t* result;
+matgen_scale_bilinear_with_policy(MATGEN_EXEC_AUTO, source,
+                                  5000, 5000, &result);
 
-// Write result
-matgen_mtx_write("output.mtx", scaled);
+// 3. Write Output
+matgen_mtx_write("data/scaled_graph.mtx", result);
 
-// Cleanup
+// 4. Cleanup
 matgen_csr_destroy(source);
-matgen_csr_destroy(scaled);
+matgen_csr_destroy(result);
 ```
+
+---
+
+## 📦 Supported Backends
+
+| Backend        | Flag                    | Description                                                |
+| :------------- | :---------------------- | :--------------------------------------------------------- |
+| **Sequential** | `MATGEN_EXEC_SEQ`       | Single-threaded CPU execution. Always available.           |
+| **OpenMP**     | `MATGEN_EXEC_PAR`       | Multi-threaded CPU execution. Requires OpenMP runtime.     |
+| **CUDA**       | `MATGEN_EXEC_PAR_UNSEQ` | NVIDIA GPU acceleration. Requires CUDA Toolkit.            |
+| **MPI**        | `MATGEN_EXEC_MPI`       | Distributed memory execution. Requires MPI implementation. |
+| **Auto**       | `MATGEN_EXEC_AUTO`      | Runtime heuristic selection based on matrix size.          |
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Integration Guide](INTEGRATION.md) for details on how to extend the library.
+
+1.  Fork the repository.
+2.  Create your feature branch (`git checkout -b feature/amazing-algo`).
+3.  Commit your changes (`git commit -m 'Add Amazing Algo'`).
+4.  Push to the branch (`git push origin feature/amazing-algo`).
+5.  Open a Pull Request.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
