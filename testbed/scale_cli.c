@@ -175,6 +175,7 @@ static void print_usage(const char* prog_name) {
   printf("                           'nearest'  - Nearest neighbor\n");
   printf("                           'bilinear' - Bilinear interpolation\n");
   printf("                           'lanczos'  - Lanczos interpolation\n");
+  printf("                           'fft'      - FFT-based interpolation\n");
   printf("  -r, --rows <N>         Target number of rows\n");
   printf("  -c, --cols <N>         Target number of columns\n");
   printf("\n");
@@ -482,10 +483,11 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
   // Validate method
   if (strcmp(config->method, "nearest") != 0 &&
       strcmp(config->method, "bilinear") != 0 &&
-      strcmp(config->method, "lanczos") != 0) {
+      strcmp(config->method, "lanczos") != 0 &&
+      strcmp(config->method, "fft") != 0) {
     if (rank == 0) {
       fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
-      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'lanczos'\n");
+      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'lanczos', 'fft'\n");
     }
     return false;
   }
@@ -496,6 +498,16 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
       fprintf(stderr, "Error: Lanczos scaling requires square output (rows == cols)\n");
     }
     return false;
+  }
+
+  // FFT has some limitations
+  if (strcmp(config->method, "fft") == 0) {
+    if (!matgen_exec_is_available(MATGEN_EXEC_SEQ) && !matgen_exec_is_available(MATGEN_EXEC_PAR_UNSEQ)) {
+      if (rank == 0) {
+        fprintf(stderr, "Error: FFT scaling requires FFTW3 (sequential) or cuFFT (CUDA) support\n");
+      }
+      return false;
+    }
   }
 
   return true;
@@ -727,6 +739,10 @@ int main(int argc, char** argv) {
       printf("Note:            Lanczos uses kernel width=3\n");
     }
 
+    if (strcmp(config.method, "fft") == 0) {
+      printf("Note:            FFT uses frequency-domain interpolation\n");
+    }
+
 #ifdef MATGEN_HAS_OPENMP
     if (resolved_policy == MATGEN_EXEC_PAR) {
       printf("OpenMP threads:  %d\n", matgen_exec_get_num_threads());
@@ -902,10 +918,14 @@ int main(int argc, char** argv) {
     err = matgen_scale_bilinear_with_policy(policy, local_input_csr,
                                             config.new_rows, config.new_cols,
                                             &local_output_csr);
-  } else {  // lanczos
+  } else if (strcmp(config.method, "lanczos") == 0) {
     err = matgen_scale_lanczos_with_policy(policy, local_input_csr,
                                            config.new_rows, config.new_cols,
                                            &local_output_csr);
+  } else {  // fft
+    err = matgen_scale_fft_with_policy(policy, local_input_csr,
+                                       config.new_rows, config.new_cols,
+                                       &local_output_csr);
   }
 
 #ifdef MATGEN_HAS_MPI

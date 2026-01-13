@@ -154,7 +154,73 @@ matgen_error_t matgen_scale_lanczos_with_policy(
     matgen_index_t new_rows,
     matgen_index_t new_cols,
     matgen_csr_matrix_t** result);
+/**
+ * @brief Scale sparse matrix using FFT-based interpolation with execution policy
+ *
+ * FFT scaling uses frequency domain interpolation to resize sparse matrices while
+ * preserving spectral characteristics. Suitable for both upscaling and downscaling.
+ *
+ * Algorithm characteristics:
+ * - Uses 1D FFT on rows, then 1D FFT on columns (separable transform)
+ * - Maintains matrix density through adaptive thresholding
+ * - Excellent for preserving frequency-domain features
+ * - Memory-efficient batched processing for large matrices
+ *
+ * Requirements:
+ * - Sequential backend: Requires FFTW3 library
+ * - CUDA backend: Requires cuFFT library
+ *
+ * @param policy Execution policy (MATGEN_EXEC_SEQ, MATGEN_EXEC_PAR_UNSEQ for CUDA)
+ * @param source Source matrix (CSR format)
+ * @param new_rows Target number of rows
+ * @param new_cols Target number of columns
+ * @param result Output: scaled matrix (CSR format)
+ * @return MATGEN_SUCCESS on success, error code otherwise
+ *
+ * @note For binary matrices (values near 1.0), uses threshold=0.7
+ *       For general matrices, uses threshold=0.1
+ *
+ * @example
+ * ```c
+ * // Use CUDA for large matrices
+ * matgen_scale_fft_with_policy(MATGEN_EXEC_PAR_UNSEQ, source,
+ *                              4000, 4000, &result);
+ *
+ * // Use sequential CPU with FFTW3
+ * matgen_scale_fft_with_policy(MATGEN_EXEC_SEQ, source,
+ *                              2000, 2000, &result);
+ * ```
+ */
+matgen_error_t matgen_scale_fft_with_policy(
+    matgen_exec_policy_t policy,
+    const matgen_csr_matrix_t* source,
+    matgen_index_t new_rows,
+    matgen_index_t new_cols,
+    matgen_csr_matrix_t** result);
 
+/**
+ * @brief Scale sparse matrix using FFT with custom threshold
+ *
+ * Like matgen_scale_fft_with_policy(), but allows manual threshold control.
+ *
+ * @param policy Execution policy
+ * @param source Source matrix (CSR format)
+ * @param new_rows Target number of rows
+ * @param new_cols Target number of columns
+ * @param threshold Minimum absolute value to keep (0.0 to 1.0)
+ * @param result Output: scaled matrix (CSR format)
+ * @return MATGEN_SUCCESS on success, error code otherwise
+ *
+ * @note Lower threshold = denser output, higher threshold = sparser output
+ */
+matgen_error_t matgen_scale_fft_with_policy_detailed(
+    matgen_exec_policy_t policy,
+    const matgen_csr_matrix_t* source,
+    matgen_index_t new_rows,
+    matgen_index_t new_cols,
+    matgen_value_t threshold,
+    matgen_csr_matrix_t** result);
+    
 #ifdef __cplusplus
 }
 #endif
