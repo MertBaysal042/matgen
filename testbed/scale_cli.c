@@ -484,15 +484,15 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
   // Validate method
   if (strcmp(config->method, "nearest") != 0 &&
       strcmp(config->method, "bilinear") != 0 && 
-      strcmp(config->method, "adaptive") != 0) {
+      strcmp(config->method, "adaptive") != 0 &&
+      strcmp(config->method, "lanczos") != 0) {
     if (rank == 0) {
       fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
       fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'adaptive'\n");
-      strcmp(config->method, "bilinear") != 0 &&
-      strcmp(config->method, "lanczos") != 0; 
+
     if (rank == 0) {
       fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
-      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'lanczos'\n");
+      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'adaptive', 'lanczos'\n");
     }
     return false;
     }
