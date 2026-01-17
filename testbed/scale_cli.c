@@ -488,7 +488,7 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
       strcmp(config->method, "lanczos") != 0) {
     if (rank == 0) {
       fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
-      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'adaptive', 'lanczos'\n");
+      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'adaptive','lanczos'\n");
     }
     return false; 
   }
